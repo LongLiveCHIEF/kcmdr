@@ -1,0 +1,22 @@
+services:
+  printer:
+    container_name: printer
+    image: virtual-klipper-printer:latest
+    build:
+      context: dev/virtual-klipper-printer
+      dockerfile: Dockerfile
+      args:
+        - KLIPPER_REPO
+    volumes:
+      - ./dev/printer_data:/home/printer/printer_data:delegated,Z
+    ports:
+      - "7125:7125"
+      - "8110:8080"
+    networks:
+      - dev_net
+    tmpfs:
+      - /tmp:noexec
+      - /home/printer/printer_data/comms:noexec
+networks:
+  dev_net:
+    driver: bridge

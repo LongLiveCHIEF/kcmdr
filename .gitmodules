@@ -1,0 +1,3 @@
+[submodule "dev/virtual-klipper-printer"]
+	path = dev/virtual-klipper-printer
+	url = https://github.com/mainsail-crew/virtual-klipper-printer
