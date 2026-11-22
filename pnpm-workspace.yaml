@@ -3,5 +3,6 @@ packages:
 
 autoInstallPeers: true
 allowBuilds:
+  '@parcel/watcher': true
   nx: true
   unrs-resolver: true
