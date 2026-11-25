@@ -12,11 +12,11 @@ function defineNextConfig(config) {
 
 export default defineNextConfig({
 	reactStrictMode: true,
-	distDir: 'build',
+	distDir: 'dist',
 	cleanDistDir: true,
 	basePath: '/configure',
 	eslint: {
-		dirs: ["pages", "app", "server", "recoil", "data", "helpers", "hooks", "moonraker", "__tests__", "cli", "components", "templates", "utils", "zods"],
+		dirs: ["src/pages", "src/app", "src/server", "src/recoil", "src/data", "src/helpers", "src/hooks", "src/moonraker", "src/__tests__", "src/components", "src/templates", "src/utils", "src/zods"],
 	},
 	publicRuntimeConfig: {
 		// Will be available on both server and client

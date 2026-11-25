@@ -25,26 +25,20 @@
     ],
     "baseUrl": ".",
     "paths": {
+      "@/public/*": [
+        "public/*"
+      ],
+      "@/tailwind.config": [
+        "tailwind.config.ts"
+      ],
       "@/*": [
-        "*"
-      ],
-      "ink": [
-        "node_modules/ink/build/index.d.ts"
-      ],
-      "@inkjs/ui": [
-        "node_modules/@inkjs/ui/build/index.d.ts"
-      ],
-	  "ink-spinner": [
-        "node_modules/ink-spinner/build/index.d.ts"
-      ],
-	  "ink-testing-library": [
-        "node_modules/ink-testing-library/build/index.d.ts"
+        "src/*"
       ]
     }
   },
   "include": [
     "next-env.d.ts",
-    "build/types/**/*.ts",
+    "dist/types/**/*.ts",
     "**/*.d.ts",
     "**/*.ts",
     "**/*.tsx"

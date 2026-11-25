@@ -165,7 +165,8 @@ describe('RatOS CLI', async () => {
 				'--non-interactive',
 				realPath.resolve(
 					__dirname,
-					'server/gcode-processor/fixtures/slicer_output/002/IDEX_MultiColor/PS_2.8.1_PurgeTower.gcode',
+					// The gcode fixtures live with the configurator's gcode-processor tests.
+					'../../../configurator/src/__tests__/server/gcode-processor/fixtures/slicer_output/002/IDEX_MultiColor/PS_2.8.1_PurgeTower.gcode',
 				),
 				realTmpfile(),
 			]);

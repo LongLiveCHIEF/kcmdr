@@ -1,0 +1,38 @@
+{
+  "compilerOptions": {
+    "target": "es2018",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/cli/*": ["src/*"],
+      "@/*": ["../configurator/src/*"],
+      "ink": ["node_modules/ink/build/index.d.ts"],
+      "@inkjs/ui": ["node_modules/@inkjs/ui/build/index.d.ts"],
+      "ink-spinner": ["node_modules/ink-spinner/build/index.d.ts"],
+      "ink-testing-library": ["node_modules/ink-testing-library/build/index.d.ts"]
+    }
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "build.ts",
+    "../configurator/next-env.d.ts",
+    "../configurator/src/reset.d.ts",
+    "../configurator/src/helpers.d.ts",
+    "../configurator/src/lib-react.d.ts",
+    "../configurator/src/lib-tailwind.d.ts"
+  ],
+  "exclude": ["node_modules"]
+}

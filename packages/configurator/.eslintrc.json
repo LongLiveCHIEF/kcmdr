@@ -6,13 +6,12 @@
 	"overrides": [
 		{
 			"files": ["*.tsx", "*.ts"],
-			"excludedFiles": "cli/*",
 			"rules": {
 				"react/no-unescaped-entities": "off",
 				"jsx-quotes": 1,
 				// "sort-imports": 1,
 				"no-duplicate-imports": 1,
-				"@limegrass/import-alias/import-alias": ["error", { "aliasConfigPath": "./src/tsconfig.json"}],
+				"@limegrass/import-alias/import-alias": ["error", { "aliasConfigPath": "./tsconfig.json"}],
 				// "unused-imports/no-unused-imports": "error",
 				"prettier/prettier": ["warn", { "endOfLine": "auto" }],
 				"react/display-name": "off",

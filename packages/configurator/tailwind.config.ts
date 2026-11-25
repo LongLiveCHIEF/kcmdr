@@ -8,11 +8,11 @@ import svgToDataUri from 'mini-svg-data-uri';
 export default {
 	darkMode: 'class',
 	content: [
-		'./pages/**/*.{js,ts,jsx,tsx}',
-		'./components/**/*.{js,ts,jsx,tsx}',
-		'./helpers/**/*.{js,ts,jsx,tsx}',
-		'./app/**/*.{js,ts,jsx,tsx}',
-		'./data/**/*.{js,ts,jsx,tsx}',
+		'./src/pages/**/*.{js,ts,jsx,tsx}',
+		'./src/components/**/*.{js,ts,jsx,tsx}',
+		'./src/helpers/**/*.{js,ts,jsx,tsx}',
+		'./src/app/**/*.{js,ts,jsx,tsx}',
+		'./src/data/**/*.{js,ts,jsx,tsx}',
 	],
 	theme: {
 		container: {

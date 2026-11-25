@@ -1,7 +1,7 @@
 import * as esbuild from 'esbuild';
 import path from 'node:path';
 import fs from 'node:fs';
-import pinoshim from '@/cli/pino-shim';
+import pinoshim from './src/pino-shim';
 
 let wasmPlugin = {
 	name: 'wasm',
@@ -57,17 +57,17 @@ let wasmPlugin = {
 
 await esbuild.build({
 	entryPoints: {
-		ratos: 'ratos.tsx',
+		ratos: 'src/ratos.tsx',
 	},
 	bundle: true,
 	external: ['zx'],
 	platform: 'node',
 	outExtension: { '.js': '.mjs' },
-	outdir: '../bin',
+	outdir: 'bin',
 	target: 'node18',
 	format: 'esm',
-	inject: ['cjs-shim.ts'],
+	inject: ['src/cjs-shim.ts'],
 	plugins: [wasmPlugin, pinoshim({ transports: ['pino-pretty'] })],
 });
 
-// await $`mv ../bin/ratos.mjs.js ../bin/ratos.mjs`;
+// await $`mv bin/ratos.mjs.js bin/ratos.mjs`;

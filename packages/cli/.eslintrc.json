@@ -3,6 +3,10 @@
     "@limegrass/import-alias"],
 	"extends": ["next/core-web-vitals", "plugin:react-hooks/recommended"],
 	"parser": "@typescript-eslint/parser",
+	"rules": {
+		// The CLI has no Next.js pages directory.
+		"@next/next/no-html-link-for-pages": "off"
+	},
 	"overrides": [
 		{
 			"files": ["*.tsx", "*.ts"],
@@ -11,7 +15,7 @@
 				"jsx-quotes": 1,
 				// "sort-imports": 1,
 				"no-duplicate-imports": 1,
-				"@limegrass/import-alias/import-alias": ["error", { "aliasConfigPath": "./src/tsconfig.json"}],
+				"@limegrass/import-alias/import-alias": ["error", { "aliasConfigPath": "./tsconfig.json"}],
 				// "unused-imports/no-unused-imports": "error",
 				"prettier/prettier": ["warn", { "endOfLine": "auto" }],
 				"react/display-name": "off",

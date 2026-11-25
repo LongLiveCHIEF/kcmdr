@@ -3,6 +3,9 @@ packages:
 
 autoInstallPeers: true
 allowBuilds:
+  esbuild: true
   '@parcel/watcher': true
   nx: true
   unrs-resolver: true
+overrides:
+  react-remove-scroll: 2.5.9
