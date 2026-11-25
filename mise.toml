@@ -15,12 +15,12 @@ postinstall = [
 ]
 
 [shell_alias]
-nx = "pnpm dlx nx"
+nx = "pn nx"
 compose = "docker compose"
 
 [tasks."setup:all"]
 description = "Setup all submodules and install dependencies"
-depends = ["setup:deps", "setup:virtual-klipper"]
+depends = ["setup:deps", "setup:submodules"]
 
 [tasks."setup:deps"]
 description = "Setup node dependencies"
@@ -30,13 +30,13 @@ run = [
 	"echo 'node modules installed!'",
 ]
 
-[tasks."setup:virtual-klipper"]
-description = "Setup virtual klipper printer testing submodule"
-run = [
-	"echo 'setting up virtual klipper printer testing submodule'",
-	"git submodule update --init --recursive",
-	"echo 'virtual klipper printer testing submodule setup complete!'",
-]
+[tasks.list-submodules]
+description = "List all submodules used by this project"
+run = ["git submodule status --recursive"]
+
+[tasks."setup:submodules"]
+description = "Setup submodules used by this project for build and testing"
+run = ["git submodule update --init --recursive"]
 
 [tasks.build-klipper]
 description = "Build virtual klipper docker image"

@@ -5,7 +5,6 @@
   "scripts": {},
   "private": true,
   "devDependencies": {
-    "@eslint/js": "^9.8.0",
     "@nx/js": "24.0.6",
     "@nx/node": "24.0.6",
     "@nx/oxlint": "24.0.6",
