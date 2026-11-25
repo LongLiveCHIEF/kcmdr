@@ -218,21 +218,21 @@ test_real_usage_patterns() {
     test_log_test "Testing real usage patterns from ratos-update.sh..."
 
     # Test pattern from line 84 (sed command)
-    if execute_with_logging "ensure_node_18" "NODE_REPO_UPDATE_FAILED" echo "Simulated sed command" >/dev/null 2>&1; then
+    if execute_with_logging "ensure_nodejs" "NODE_REPO_UPDATE_FAILED" echo "Simulated sed command" >/dev/null 2>&1; then
         test_log_pass "Real usage patterns - line 84 pattern (sed command)"
     else
         test_log_fail "Real usage patterns - line 84 pattern failed"
     fi
 
     # Test pattern from line 85 (apt-get update)
-    if execute_with_logging "ensure_node_18" "APT_UPDATE_FAILED" echo "Simulated apt-get update" >/dev/null 2>&1; then
+    if execute_with_logging "ensure_nodejs" "APT_UPDATE_FAILED" echo "Simulated apt-get update" >/dev/null 2>&1; then
         test_log_pass "Real usage patterns - line 85 pattern (apt-get update)"
     else
         test_log_fail "Real usage patterns - line 85 pattern failed"
     fi
 
     # Test pattern from line 86 (apt-get install)
-    if execute_with_logging "ensure_node_18" "NODE_INSTALL_FAILED" echo "Simulated apt-get install" >/dev/null 2>&1; then
+    if execute_with_logging "ensure_nodejs" "NODE_INSTALL_FAILED" echo "Simulated apt-get install" >/dev/null 2>&1; then
         test_log_pass "Real usage patterns - line 86 pattern (apt-get install)"
     else
         test_log_fail "Real usage patterns - line 86 pattern failed"
