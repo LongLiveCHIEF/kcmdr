@@ -1,8 +1,14 @@
 #!/usr/bin/env bash
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-SRC_DIR=$(realpath "$SCRIPT_DIR/..")
-BASE_DIR=$(realpath "$SRC_DIR/..")
-GIT_DIR=$BASE_DIR/.git
+# Monorepo layout (same for a source checkout and an extracted release):
+#   <workspace>/packages/configurator/src/scripts  <- SCRIPT_DIR
+#   <workspace>/packages/configurator              <- APP_DIR (package root, .env, configuration/)
+#   <workspace>/packages/cli                       <- CLI_DIR
+APP_DIR=$(realpath "$SCRIPT_DIR/../..")
+BASE_DIR=$APP_DIR
+WORKSPACE_DIR=$(realpath "$APP_DIR/../..")
+CLI_DIR="$WORKSPACE_DIR/packages/cli"
+GIT_DIR=$WORKSPACE_DIR/.git
 
 source "$BASE_DIR/configuration/scripts/environment.sh"
 
@@ -28,7 +34,7 @@ install_or_update_service_file()
 
 	cp "${SERVICE_FILE_TEMPLATE}" /tmp/ratos-configurator.service
 	
-	sed -i "s|__SRC_DIR__|${SRC_DIR}|g" /tmp/ratos-configurator.service
+	sed -i "s|__APP_DIR__|${APP_DIR}|g" /tmp/ratos-configurator.service
 	sed -i "s|__RATOS_USERNAME__|${RATOS_USERNAME}|g" /tmp/ratos-configurator.service
 	
 	if [ -f "${SERVICE_FILE}" ]; then
@@ -48,25 +54,77 @@ install_or_update_service_file()
 	fi
 }
 
+# Release installs are extracted from a GitHub release archive. They contain prebuilt
+# output and a release_info.json, and have no .git directory.
+is_release_install() {
+	[ -f "$WORKSPACE_DIR/release_info.json" ]
+}
+
+# Runs a command as the RatOS user when invoked as root, otherwise as the current user.
+run_as_ratos_user() {
+	if [ "$EUID" -eq 0 ]; then
+		sudo -u "${RATOS_USERNAME}" "$@"
+	else
+		"$@"
+	fi
+}
+
 pnpm_install() {
 	report_status "Installing pnpm dependencies..."
-    pushd "$SRC_DIR" || exit 1
-	if [ -d "$BASE_DIR/node_modules" ]; then
-		report_status "Moving node_modules from git directory to src directory"
-		mv "$BASE_DIR/node_modules" "$SRC_DIR"
-	fi
+	pushd "$WORKSPACE_DIR" || exit 1
 	if [ "$EUID" -eq 0 ]; then
 		# Check if node_modules is owned by root and delete
 		# Fixes old 2.0 installations
-		if [ -d "$SRC_DIR/node_modules" ] && [ "$(stat -c %U "$SRC_DIR/node_modules")" == "root" ]; then
+		if [ -d "$WORKSPACE_DIR/node_modules" ] && [ "$(stat -c %U "$WORKSPACE_DIR/node_modules")" == "root" ]; then
 			report_status "Deleting root owned node_modules"
-			rm -rf "$SRC_DIR/node_modules"
+			rm -rf "$WORKSPACE_DIR/node_modules"
 		fi
-        sudo -u "${RATOS_USERNAME}" pnpm install --frozen-lockfile --aggregate-output --no-color --config.confirmModulesPurge=false
-    else
-		pnpm install --frozen-lockfile --aggregate-output --no-color --config.confirmModulesPurge=false
 	fi
-    popd || exit 1
+	local install_flags=(--frozen-lockfile --aggregate-output --no-color --config.confirmModulesPurge=false)
+	if is_release_install; then
+		# Prebuilt release: only runtime dependencies are needed.
+		install_flags+=(--prod)
+	fi
+	run_as_ratos_user pnpm install "${install_flags[@]}"
+	popd || exit 1
+}
+
+# Records that update.sh/setup.sh finished for the current release, so the service's
+# release-update.sh pre-start step doesn't run them again until a new release is extracted.
+mark_release_installed() {
+	is_release_install || return 0
+	local version
+	version=$(sed -nE 's/^[[:space:]]*"version":[[:space:]]*"([^"]*)".*/\1/p' "$WORKSPACE_DIR/release_info.json")
+	echo "$version" > "$WORKSPACE_DIR/.ratos-installed-release"
+}
+
+# Moonraker wipes the install folder on update and only keeps top-level persistent_files, so on
+# release installs the printer's .env.local lives at the install root and is linked into the app.
+link_release_env_local() {
+	is_release_install || return 0
+	local root_env="$WORKSPACE_DIR/.env.local"
+	local app_env="$APP_DIR/.env.local"
+	if [ -f "$app_env" ] && [ ! -L "$app_env" ]; then
+		# Created in the app folder since the last update, so it's the most recent version.
+		report_status "Moving $app_env to $root_env so it survives updates"
+		mv -f "$app_env" "$root_env"
+	fi
+	if [ -f "$root_env" ]; then
+		ln -sfn ../../.env.local "$app_env"
+	fi
+}
+
+# Source checkouts don't ship build output; the CLI must be built before `ratos` works.
+# The configurator itself is only built on demand (`pnpm --filter ratos-configurator build`),
+# a source checkout is typically served with `pnpm --filter ratos-configurator dev`.
+build_cli() {
+	if is_release_install; then
+		return 0
+	fi
+	report_status "Building RatOS CLI..."
+	pushd "$WORKSPACE_DIR" || exit 1
+	run_as_ratos_user pnpm --filter ratos-cli run build
+	popd || exit 1
 }
 
 ensure_pnpm_installation() {
@@ -74,7 +132,7 @@ ensure_pnpm_installation() {
 		report_status "Installing pnpm"
 		npm install -g pnpm
 		# remove old node modules
-		rm -rf "$SRC_DIR/node_modules"
+		rm -rf "$WORKSPACE_DIR/node_modules"
 		pnpm_install
 	fi
 }
@@ -91,6 +149,10 @@ ensure_service_permission()
 install_hooks()
 {
     report_status "Installing git hooks"
+	if [ ! -d "$GIT_DIR" ]; then
+		echo "No git checkout at $WORKSPACE_DIR (release install), skipping git hooks."
+		return 0
+	fi
 	if [ -L "$GIT_DIR/hooks/post-merge" ]; then
  	   rm "$GIT_DIR/hooks/post-merge"
 	fi
@@ -164,7 +226,7 @@ install_cli()
 	[ "$EUID" -ne 0 ] && sudo="sudo"
 	
 	target="/usr/local/bin/ratos"
-	source="$SRC_DIR/bin/ratos"
+	source="$CLI_DIR/bin/ratos"
 	if [ ! -L "$target" ] || [ ! "$(readlink "$target")" = "$source" ]; then
 		report_status "Installing RatOS CLI"
 		$sudo rm -f "$target"

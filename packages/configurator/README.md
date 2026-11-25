@@ -11,131 +11,88 @@ Bug fixes should be submitted against the v2.x branch and subseqently merged int
 
 ## Local setup
 
+The configurator lives in the kcmdr monorepo alongside the RatOS CLI:
+
+* `packages/configurator` – the Next.js configurator (`ratos-configurator`), its RatOS `configuration/` and the Pi-side scripts in `src/scripts/`
+* `packages/cli` – the `ratos` command line tool (`ratos-cli`)
+
+See the [workspace contributing guide](../../CONTRIBUTING.md) for installing the toolchain (mise, node, pnpm).
+
 ### Requirements
 
-This thing still need to be dockerized (PR's welcome), but will run on any linux based machine with the following prerequisites:
-
 * Linux or WSL
-* VSCode
-* Node v20.x (i prefer managing this with [nvm](https://github.com/nvm-sh/nvm?tab=readme-ov-file#installing-and-updating))
-* [PNPM](https://pnpm.io/installation)
+* Node and pnpm in the versions pinned by the workspace `mise.toml`
 
-Most bash scripts will assume user `pi` exists. Needs fixing, fortunately  you don't need them for most work.
+Most bash scripts will assume user `pi` exists. Needs fixing, fortunately you don't need them for most work.
 
 ### Installation
 
-The `RatOS-configuration` has been incorporated into `RatOS-configurator` (the so-called "monorepo" update), so the `RatOS-configuration` repo is no longer used and should not be cloned. The correct development environment installation process for the monorepo setup is not fully documented yet.
+Install dependencies from the workspace root:
 
-Clone repositories
 ```bash
-mkdir RatOS-dev && cd RatOS-dev
-mkdir -p printer_data/ratos
-mkdir -p printer_data/logs
-mkdir -p printer_data/config
-git clone git@github.com:Rat-OS/RatOS-configurator.git
-# External dependencies
-git clone git@github.com:klipper3d/klipper.git
-git clone git@github.com:Arksine/moonraker.git
-# Configuration repo ** SEE MONOREPO NOTE ABOVE **
-ln -s /home/myuser/RatOS-dev/RatOS-configurator/configuration /home/myuser/RatOS-dev/printer_data/config/RatOS
-#cd printer_data/config
-#git clone git@github.com:Rat-OS/RatOS-configuration.git RatOS
-#cd ../..
-```
-
-Install dependencies
-```bash
-cd RatOS-configurator/src
 pnpm install
 ```
 
-Copy environment constants and define paths in .env.local
+Generate `packages/configurator/.env.local` and a local `printer_data` layout under `<workspace>/dev`:
+
 ```bash
-cp .env .env.local
-cd ..
-# Start vscode
-code .
+packages/configurator/scripts/setup-local-dev.sh <klipper-host>.local
 ```
 
-Edit .env.local and modify the paths to match your setup ie:
-```
-RATOS_CONFIGURATION_PATH=/home/myuser/RatOS-dev/printer_data/config/RatOS
-KLIPPER_CONFIG_PATH=/home/myuser/RatOS-dev/printer_data/config
-RATOS_SCRIPT_DIR=/home/myuser/RatOS-dev/RatOS-configurator/src/scripts
-KLIPPER_DIR=/home/myuser/RatOS-dev/klipper
-KLIPPER_ENV=/home/myuser/RatOS-dev/klippy-env
-MOONRAKER_DIR=/home/myuser/RatOS-dev/moonraker
-LOG_FILE=/home/myuser/RatOS-dev/printer_data/logs/ratos-configurator.log
-RATOS_DATA_DIR=/home/myuser/RatOS-dev/printer_data/ratos
-NEXT_PUBLIC_KLIPPER_HOSTNAME=hostnameofrunningtestprinter.local
-RECOIL_DUPLICATE_ATOM_KEY_CHECKING_ENABLED=false
-```
-NOTE: for modern monorepo setups, the following change to the above is at least partially functional:
-```
-RATOS_CONFIGURATION_PATH=/home/myuser/RatOS-dev/RatOS-configurator/configuration
-```
+The script links `configuration/` into `dev/printer_data/config/RatOS`. Klipper and Moonraker default to `dev/klipper` and `dev/moonraker`. To use existing checkouts, set `KLIPPER_DIR`, `KLIPPER_ENV` and `MOONRAKER_DIR` when you run it. Some tests read `.env.test.local` first, so copy the file if needed:
 
-It may also be necessary to create .env.test.local:
 ```bash
-cd RatOS-configurator/src
-cp .env.local .env.test.local
+cp packages/configurator/.env.local packages/configurator/.env.test.local
 ```
 
-The `NEXT_PUBLIC_KLIPPER_HOSTNAME` variable is used by the frontend to connect to moonraker and klipper, those need to be real. The RatOS configurator will save configuration to the database on the moonraker instance running on that host.
-
-You can try and run klipper and moonraker locally (i have not gone down this path yet).
+The `NEXT_PUBLIC_KLIPPER_HOSTNAME` variable is used by the frontend to connect to moonraker and klipper, those need to be real. The RatOS configurator will save configuration to the database on the moonraker instance running on that host. Add the browser origin (e.g. `http://localhost:3000`) to that Moonraker's `cors_domains`.
 
 ### (Optional) link the RatOS cli binary (commands only work when dev server is running)
+
 ```bash
-sudo ln -s "/home/myuser/RatOS-dev/RatOS-configurator/src/bin/ratos" "/usr/local/bin/ratos"
-sudo chmod a+x "/usr/local/bin/ratos"
+pnpm nx run ratos-cli:build
+sudo ln -s "$PWD/packages/cli/bin/ratos" "/usr/local/bin/ratos"
 ```
-You should no be able to run the `ratos` cli command.
 
 ### Developing
 
-in `RatOS-dev/RatOS-configurator/src` you can run
+Run tasks with nx from the workspace root:
 
-* `pnpm run dev` to run the development server
-* `pnpm run test` to run the tests
-* `pnpm run typecheck` to run typechecking
-* `pnpm run lint` to run linting
+* `pnpm nx run ratos-configurator:dev` to run the development server
+* `pnpm nx run-many -t test -p ratos-configurator ratos-cli` to run the tests
+* `pnpm nx run-many -t typecheck -p ratos-configurator ratos-cli` to run typechecking
+* `pnpm nx run-many -t lint -p ratos-configurator ratos-cli` to run linting
+* `pnpm nx run ratos-configurator:build` to build the configurator into `packages/configurator/dist`
+* `pnpm nx run ratos-cli:build` to build the CLI into `packages/cli/dist`
 
-### Testing Deployments with Deployment Branches
+### Releases
 
-RatOS-Configurator currently uses deployment branches to release and publish
-the compiled RatOS-configurator app. There is a utility script
-at `./scripts/create-local-deployment.sh` that will automatically
-create a local deployment branch derived from you current working branch
-and directory.
+Releases are published as GitHub releases by the `Release` workflow when a `v*` tag is pushed. Tags with a suffix, such as `v2.2.0-beta.1`, become pre-releases. Each release has two archives with the same contents: `ratos-configurator.tar.gz`, which keeps file modes, and `ratos-configurator.zip`. They contain the runtime subset of the monorepo:
 
-The script can be run from any directory in the RatOS-configurator repo, and **it will create a new directory
-in the RatOS-Configurator's parent directory**
-
-*Note: This script is for development purposes only, and may not
-produce the same final output in your deployment branch that would
-be created in the official release/publish workflow*.
-
-```console
-cd /path/to/RatOS-configurator
-./scripts/create-local-deployment.sh
+```
+release_info.json  package.json  pnpm-workspace.yaml  pnpm-lock.yaml
+packages/configurator/{package.json,next.config.mjs,.env,public,dist,configuration,scripts,src/scripts}
+packages/cli/{package.json,bin,dist}
 ```
 
-This will:
+To build a release locally, run the following. The output goes to `dist/release` at the workspace root:
 
-- create a new worktree with a folder named `configurator-deployment-worktrees/<current-branch>-deployment`. The `configurator-deployment-worktrees` will be in the same parent directory as your `RatOS-configurator` repo.
-- run install and build commands on the worktree
-- remove uneeded files in the deployment branch
-- rename folders to match deployment usage on ratos
+```bash
+RELEASE_VERSION=v2.1.0 pnpm nx run ratos-configurator:package
+```
 
-#### Publishing the test Deployment branch
+To install a release, extract it to `~/ratos-configurator`, then run `packages/configurator/src/scripts/setup.sh`. The scripts detect a release install from `release_info.json` and install only production dependencies (`pnpm install --frozen-lockfile --prod`). In a source checkout they install everything and build the CLI.
 
-The `create-local-deployment` uses [`git worktree`](https://git-scm.com/docs/git-worktree) to create your
-deployment branch in a separate working directory. This allows you
-to keep both your current branch, and the deployment branch
-checked out simultaneously.
+#### Updates
 
-To commit, cd into the worktree, and use `git push -u <remote> <branch>`.
+Moonraker updates release installs through the `type: zip` entry for `ratos-configurator` in `configuration/moonraker.conf`. It replaces `~/ratos-configurator` with the new release's `ratos-configurator.zip` and restarts the `ratos-configurator` service. The service then finishes the install with `src/scripts/release-update.sh`:
+
+* `ExecStartPre` runs `update.sh` (dependencies, CLI link, udev rules, sudoers, service file) once per release.
+* `ExecStartPost` queues `configuration/scripts/ratos-update.sh` in a transient unit once per release. It runs after the configurator answers, because it registers Klipper extensions through it.
+
+Moonraker wipes the install folder on update and keeps only the top-level `persistent_files`. Put a printer's configurator overrides in `~/ratos-configurator/.env.local`; the scripts link it to `packages/configurator/.env.local`. An existing `packages/configurator/.env.local` is moved there automatically.
+
+Source checkouts still update through the git `post-merge` hook, and Moonraker reports them as invalid `zip` installs.
 
 ## Help and support
 

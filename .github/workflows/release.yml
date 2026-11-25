@@ -1,0 +1,65 @@
+name: Release
+
+# Publishes the RatOS configurator as a GitHub release when a version tag is pushed, e.g.
+#   git tag v2.1.1 && git push origin v2.1.1
+# Tags with a pre-release suffix (v2.2.0-beta.1) are published as pre-releases.
+on:
+  push:
+    tags:
+      - 'v*'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      actions: read
+      contents: read
+
+  release:
+    needs: ci
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        name: Install pnpm
+        with:
+          version: 12
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'pnpm'
+
+      - run: pnpm install --frozen-lockfile
+
+      # Builds ratos-configurator and ratos-cli into their dist/ folders, then assembles
+      # dist/release/ratos-configurator.{tar.gz,zip} with release_info.json.
+      # No .env.local is written: the release ships the default .env.
+      - name: Build and package release
+        run: pnpm exec nx run ratos-configurator:package
+        env:
+          NODE_ENV: production
+          RELEASE_VERSION: ${{ github.ref_name }}
+          RELEASE_REPO: ${{ github.repository }}
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          prerelease=""
+          [[ "$TAG" == *-* ]] && prerelease="--prerelease"
+          gh release create "$TAG" \
+            dist/release/ratos-configurator.tar.gz \
+            dist/release/ratos-configurator.zip \
+            --title "$TAG" \
+            --generate-notes \
+            $prerelease

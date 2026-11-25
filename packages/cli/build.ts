@@ -1,6 +1,7 @@
 import * as esbuild from 'esbuild';
 import path from 'node:path';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import pinoshim from './src/pino-shim';
 
 let wasmPlugin = {
@@ -55,6 +56,10 @@ let wasmPlugin = {
 	},
 };
 
+const outdir = 'dist';
+
+await fs.promises.rm(outdir, { recursive: true, force: true });
+
 await esbuild.build({
 	entryPoints: {
 		ratos: 'src/ratos.tsx',
@@ -63,11 +68,14 @@ await esbuild.build({
 	external: ['zx'],
 	platform: 'node',
 	outExtension: { '.js': '.mjs' },
-	outdir: 'bin',
+	outdir,
 	target: 'node18',
 	format: 'esm',
 	inject: ['src/cjs-shim.ts'],
 	plugins: [wasmPlugin, pinoshim({ transports: ['pino-pretty'] })],
 });
 
-// await $`mv bin/ratos.mjs.js bin/ratos.mjs`;
+// ink's yoga-wasm-web loads ./yoga.wasm relative to the bundle at runtime, so ship the
+// copy that matches the installed ink next to ratos.mjs.
+const inkRequire = createRequire(createRequire(import.meta.url).resolve('ink'));
+await fs.promises.copyFile(inkRequire.resolve('yoga-wasm-web/dist/yoga.wasm'), path.join(outdir, 'yoga.wasm'));

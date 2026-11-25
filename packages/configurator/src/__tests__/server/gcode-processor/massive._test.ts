@@ -27,7 +27,7 @@ import { describe, test } from 'vitest';
  * a suitable gcode file. To run the test under linux or WSL with memory usage
  * stats etc:
  *
- * `~/RatOS-dev/RatOS-configurator/src$ /usr/bin/time -v pnpm vitest run --no-ui massive`
+ * `~/kcmdr/packages/configurator$ /usr/bin/time -v pnpm vitest run --no-ui massive`
  *
  */
 describe('massive', async () => {

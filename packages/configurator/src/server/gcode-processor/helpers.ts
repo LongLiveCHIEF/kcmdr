@@ -15,19 +15,16 @@
  */
 
 import { SemVer } from 'semver';
-import { promisify } from 'node:util';
-import { exec } from 'child_process';
 import { getLogger } from '@/server/helpers/logger';
+import { getInstalledConfiguratorVersion } from '@/server/helpers/version';
 
 let parsedVersion: null | SemVer = null;
 
-/** Gets the RatOS-configurator git repo version. */
+/** Gets the RatOS-configurator version (git checkout or release install). */
 export async function getConfiguratorVersion(): Promise<SemVer> {
 	let v = '__not_set__';
 	try {
-		v = (await promisify(exec)('git describe --tags --always', {
-			cwd: process.env.RATOS_SCRIPT_DIR,
-		}).then(({ stdout }) => stdout.trim())) as GitVersion;
+		v = await getInstalledConfiguratorVersion(process.env.RATOS_SCRIPT_DIR);
 		parsedVersion = new SemVer(v);
 	} catch (e) {
 		// TODO: Figure out why this doesn't work in CI and fix it

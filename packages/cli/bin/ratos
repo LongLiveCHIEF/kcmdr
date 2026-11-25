@@ -1,17 +1,22 @@
 #!/usr/bin/env bash
 SCRIPT_DIR=$( cd -- "$( dirname -- "$(realpath -- "${BASH_SOURCE[0]}")" )" &> /dev/null && pwd )
+CLI_DIR=$(realpath "$SCRIPT_DIR/..")
+WORKSPACE_DIR=$(realpath "$CLI_DIR/../..")
 RATOS_BIN_CWD=$(pwd)
 export RATOS_BIN_CWD
-npm run --silent -C "$SCRIPT_DIR"/.. cli -- "$@"
+npm run --silent -C "$CLI_DIR" cli -- "$@"
 
-if [ $? -eq 1 ] && [[ "$(npm run --silent -C "$SCRIPT_DIR"/.. cli -- "$@" 2>&1)" == *"Cannot find package 'zx'"* ]]; then
+if [ $? -eq 1 ] && [[ "$(npm run --silent -C "$CLI_DIR" cli -- "$@" 2>&1)" == *"Cannot find package 'zx'"* ]]; then
 	echo "RatOS package issues detected! Don't worry, we'll try to fix them for you..."
 	echo "Installing dependencies..."
-	pushd "$SCRIPT_DIR"/.. || exit 1
-    pnpm install --silent --frozen-lockfile --config.confirmModulesPurge=false
-    popd || exit 1
+	# Release installs ship prebuilt output and only need production dependencies.
+	prod_flag=""
+	[ -f "$WORKSPACE_DIR/release_info.json" ] && prod_flag="--prod"
+	pushd "$WORKSPACE_DIR" || exit 1
+	pnpm install --silent --frozen-lockfile $prod_flag --config.confirmModulesPurge=false
+	popd || exit 1
 	echo "Dependencies installed, running command again..."
-    npm run --silent -C "$SCRIPT_DIR"/.. cli -- "$@"
+	npm run --silent -C "$CLI_DIR" cli -- "$@"
 fi
 
 exit $?

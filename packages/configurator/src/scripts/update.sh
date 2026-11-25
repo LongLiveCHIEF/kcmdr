@@ -30,8 +30,11 @@ ensure_sudo_command_whitelisting
 install_hooks
 update_package_managers
 pnpm_install
+build_cli
+link_release_env_local
 install_cli
 install_udev_rule
 patch_log_rotation
 symlink_configuration
 install_or_update_service_file
+mark_release_installed

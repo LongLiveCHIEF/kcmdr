@@ -5,13 +5,21 @@
 
 set -euo pipefail
 
-ROOT_DIR=$(cd "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
-REPO_DIR=$(cd "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
-PRINTER_DATA="$ROOT_DIR/printer_data"
+# packages/configurator (package root, holds .env and configuration/)
+APP_DIR=$(cd "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+# Monorepo root
+WORKSPACE_DIR=$(cd "$APP_DIR/../.." && pwd)
+# Local stand-ins for the Raspberry Pi home directory live under <workspace>/dev.
+# Point KLIPPER_DIR / KLIPPER_ENV / MOONRAKER_DIR at existing checkouts to override.
+DEV_DIR="$WORKSPACE_DIR/dev"
+KLIPPER_DIR="${KLIPPER_DIR:-$DEV_DIR/klipper}"
+KLIPPER_ENV="${KLIPPER_ENV:-$DEV_DIR/klippy-env}"
+MOONRAKER_DIR="${MOONRAKER_DIR:-$DEV_DIR/moonraker}"
+PRINTER_DATA="$DEV_DIR/printer_data"
 CONFIG_PATH="$PRINTER_DATA/config"
 RATOS_DATA="$PRINTER_DATA/ratos"
 
-echo "Running local dev setup using project root: $ROOT_DIR"
+echo "Running local dev setup using workspace: $WORKSPACE_DIR"
 
 mkdir -p "$CONFIG_PATH"
 mkdir -p "$RATOS_DATA"
@@ -20,19 +28,19 @@ echo "Created $CONFIG_PATH and $RATOS_DATA"
 
 # Symlink configuration into printer_data/config/RatOS if it doesn't already exist
 if [ ! -e "$CONFIG_PATH/RatOS" ]; then
-  ln -s "$ROOT_DIR/configuration" "$CONFIG_PATH/RatOS"
+  ln -s "$APP_DIR/configuration" "$CONFIG_PATH/RatOS"
   echo "Linked configuration -> $CONFIG_PATH/RatOS"
 else
   echo "Configuration link already exists: $CONFIG_PATH/RatOS"
 fi
 
-# Generate src/.env.local using project paths to avoid editing .env in repo
+# Generate packages/configurator/.env.local using project paths to avoid editing .env in repo
 #
 # Klipper/Moonraker hostname handling
 # - You can pass the klipper/moonraker hostname for the client to connect to as the
 #   first argument to this script: e.g. "./setup-local-dev.sh vc4-500-r-dev.local"
 # - Alternatively you can pass a flag: "--host=vc4-500-r-dev.local"
-# - Use -f or --force to overwrite an existing generated `src/.env.local` file.
+# - Use -f or --force to overwrite an existing generated `.env.local` file.
 # - If not provided the script will prompt. Leave blank to disable `NEXT_PUBLIC_KLIPPER_HOSTNAME`.
 #
 # The host name needs to be resolvable from the client browser. This is typically
@@ -50,7 +58,7 @@ fi
 # Notes:
 # - The value must match the `Origin` header the browser sends (include scheme, host, and optionally port).
 # - Avoid using overly permissive patterns; restrict to known development hostnames if possible.
-ENV_FILE="$REPO_DIR/src/.env.local"
+ENV_FILE="$APP_DIR/.env.local"
 
 # Pick up a host provided via --host=foo, or the first positional arg if present.
 # Accept force flag: -f or --force to overwrite existing $ENV_FILE
@@ -102,11 +110,11 @@ if [ ! -f "$ENV_FILE" ] || [ "$FORCE" = true ]; then
 USER=$(whoami)
 RATOS_CONFIGURATION_PATH=$CONFIG_PATH/RatOS
 KLIPPER_CONFIG_PATH=$CONFIG_PATH
-RATOS_SCRIPT_DIR=$REPO_DIR/src/scripts
-KLIPPER_DIR=$ROOT_DIR/klipper
-KLIPPER_ENV=$ROOT_DIR/klippy-env
-MOONRAKER_DIR=$ROOT_DIR/moonraker
-LOG_FILE=$ROOT_DIR/printer_data/logs/ratos-configurator.log
+RATOS_SCRIPT_DIR=$APP_DIR/src/scripts
+KLIPPER_DIR=$KLIPPER_DIR
+KLIPPER_ENV=$KLIPPER_ENV
+MOONRAKER_DIR=$MOONRAKER_DIR
+LOG_FILE=$PRINTER_DATA/logs/ratos-configurator.log
 RATOS_DATA_DIR=$RATOS_DATA
 NEXT_PUBLIC_KLIPPER_HOSTNAME=$MOONRAKER_HOSTNAME
 RECOIL_DUPLICATE_ATOM_KEY_CHECKING_ENABLED=false
@@ -121,7 +129,7 @@ else
 fi
 echo ""
 echo "Local dev setup finished."
-echo "To start the dev server run: pnpm -C src run dev"
+echo "To start the dev server run (from $WORKSPACE_DIR): pnpm nx run ratos-configurator:dev"
 echo ""
 echo "NOTE: The host name must be resolvable from the client browser. This is typically a printer"
 echo "running Klipper which will provide Moonraker database access for the client to store state in."

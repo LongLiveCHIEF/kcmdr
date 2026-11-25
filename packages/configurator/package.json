@@ -18,7 +18,8 @@
 		"test:ci:config": "vitest configuration run --reporter=verbose --reporter=junit",
 		"typecheck": "tsc --noEmit",
 		"copyScichartData": "copy-files-from-to --config copy-files-from-to.json",
-		"bench:bignumber": "cd ./src/benchmarks && tsx ./bignumber.ts"
+		"bench:bignumber": "cd ./src/benchmarks && tsx ./bignumber.ts",
+		"package": "bash scripts/package-release.sh"
 	},
 	"dependencies": {
 		"@formkit/auto-animate": "^0.8.0",
@@ -176,6 +177,20 @@
 				"dependsOn": [],
 				"outputs": [
 					"{projectRoot}/dist"
+				]
+			},
+			"package": {
+				"dependsOn": [
+					"build",
+					{
+						"projects": [
+							"ratos-cli"
+						],
+						"target": "build"
+					}
+				],
+				"outputs": [
+					"{workspaceRoot}/dist/release"
 				]
 			}
 		}

@@ -47,5 +47,4 @@ description = "Upgrade dependencies and tools"
 run = "pnpm dlx nx migrate latest && pnpm install && pnpm dlx nx migrate --run-migrations"
 
 [env]
-NODE_ENV = "development"
 KLIPPER_REPO = "https://github.com/Klipper3d/klipper.git"

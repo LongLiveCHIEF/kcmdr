@@ -26,8 +26,11 @@ ensure_sudo_command_whitelisting
 ensure_pnpm_installation
 install_logrotation
 pnpm_install
+build_cli
+link_release_env_local
 disable_telemetry
 install_udev_rule
 install_cli
 symlink_configuration
 install_or_update_service_file
+mark_release_installed

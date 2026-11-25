@@ -1,7 +1,3 @@
-# Bin build
-/bin/*.js
-/bin/*.mjs
-
 # testing
 coverage
 report.xml

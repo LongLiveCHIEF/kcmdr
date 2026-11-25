@@ -5,7 +5,7 @@
 	"type": "module",
 	"scripts": {
 		"build": "tsx ./build.ts",
-		"cli": "cd ../configurator && node ../cli/bin/ratos.mjs",
+		"cli": "cd ../configurator && node ../cli/dist/ratos.mjs",
 		"lint": "eslint --ext .ts,.tsx src",
 		"lint:fix": "eslint --ext .ts,.tsx src --fix",
 		"typecheck": "tsc --noEmit",
@@ -64,7 +64,7 @@
 			"build": {
 				"dependsOn": [],
 				"outputs": [
-					"{projectRoot}/bin/*.mjs"
+					"{projectRoot}/dist"
 				]
 			},
 			"test": {

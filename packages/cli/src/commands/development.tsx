@@ -2,43 +2,14 @@ import { Command } from 'commander';
 import { constructSignalShell, ensureSudo, loadEnvironment, renderError } from '@/cli/util';
 import { getLogger } from '@/cli/logger';
 import { cd, path, Shell, syncProcessCwd } from 'zx';
-import { existsSync } from 'node:fs';
-import { readFile, writeFile } from 'node:fs/promises';
-import { replaceInFileByLine } from '@/server/helpers/file-operations';
 import { InstallProgress, InstallAction, skipActionIfAborted } from '@/cli/components/install-progress';
 import { confirm } from '@/cli/components/confirm';
 import { render, Static, Text } from 'ink';
 import React from 'react';
 import { Container } from '@/cli/components/container';
-import { reloadEnvironment } from '@/server/helpers/utils';
 
-const ensureLocalEnvFile = async () => {
-	if (!existsSync('./.env.local')) {
-		getLogger().info('Creating .env.local file');
-		await writeFile('./.env.local', await readFile('.env'));
-	}
-};
-
-const tempEnvFile = '/tmp/configurator.env.local';
-
-/**
- * Replaces lines in local env file with new lines.
- * @param searchOrReplacer  String or RegExp to search for, or a function that takes a line and returns a new line, if the function returns null the line will be removed.
- * @param replace String to replace with, or null to remove the line.
- * @returns Number of lines changed
- */
-const replaceInTempEnvFile = async (
-	searchOrReplacer: string | RegExp | ((line: string, lineNumber: number) => string | null),
-	replace?: string | null,
-) => {
-	if (!existsSync(tempEnvFile)) {
-		throw new Error(`Temporary environment file ${tempEnvFile} not found`);
-	}
-	await replaceInFileByLine(tempEnvFile, searchOrReplacer, replace);
-};
-
-// Conventionally, deployment branches have a "-deployment" suffix. The test here is a bit more permissive,
-// and allows for example "-deployment-2" suffixes, to allow for multiple deployment branches if needed.
+// Legacy RatOS-configurator deployment branches ("-deployment" suffix) used a different repository
+// layout. The monorepo is installed from GitHub releases instead, so those branches can't be used here.
 const isDeploymentBranch = (branch: string) => branch.indexOf('-deployment') > -1;
 
 const renderBranchInfo = async ($: Shell) => {
@@ -61,13 +32,26 @@ const development = (program: Command) => {
 	const development = program.command('development').description('Development commands');
 	development
 		.command('branch')
-		.description('Switch between development and deployment branches.')
+		.description('Switch the RatOS source checkout to another branch.')
 		.argument('[remote]', 'The remote to fetch from, eg. "origin" or "upstream"')
-		.argument('[branch]', 'The new branch to switch to, eg. "development" or "dev-deployment"')
+		.argument('[branch]', 'The new branch to switch to, eg. "main" or "development"')
 		.option('-f, --force', 'Forcefully delete and recreate the local branch if it already exists')
 		.action(async (remote?: string, newBranch?: string | null, options?: { force?: boolean }) => {
 			const { cmdSignal, $ } = constructSignalShell();
 			syncProcessCwd();
+
+			// Release installs are extracted archives, not git checkouts.
+			let workspaceRoot: string;
+			try {
+				workspaceRoot = (await $`git rev-parse --show-toplevel`).text().trim();
+			} catch (e) {
+				renderError(
+					'This RatOS installation is not a git checkout (it was installed from a release), so branches cannot be switched.',
+				);
+				return;
+			}
+			// Run all git commands against the whole repository, not just the configurator package.
+			cd(workspaceRoot);
 
 			if (remote == null) {
 				await renderBranchInfo($);
@@ -92,6 +76,11 @@ const development = (program: Command) => {
 			) {
 				renderError(`Branch "${newBranch}" not found on remote "${remote}"`);
 			}
+			if (isDeploymentBranch(newBranch)) {
+				renderError(
+					`"${newBranch}" is a legacy deployment branch. RatOS is now distributed as GitHub releases, deployment branches are no longer supported.`,
+				);
+			}
 			await ensureSudo();
 
 			const currentBranch = (await $`git branch --show-current`).lines()[0];
@@ -101,7 +90,6 @@ const development = (program: Command) => {
 			getLogger().info(
 				{
 					currentBranch,
-					currentBranchIsDeploymentBranch: isDeploymentBranch(currentBranch),
 					hasDirtyWorkingDirectory,
 				},
 				`Switching from ${currentBranch} to ${newBranch}...`,
@@ -172,130 +160,17 @@ const development = (program: Command) => {
 					}),
 				},
 				{
-					name: 'Copying local environment file',
-					execute: skipActionIfAborted(async (abortSignal, helpers) => {
-						await ensureLocalEnvFile();
-						await $`cp ./.env.local ${tempEnvFile}`;
-						return { newName: 'Copied local environment file', stepStatus: 'success' };
-					}),
-				},
-				{
 					name: `Switching to ${newBranch}...`,
 					execute: async (abortSignal, helpers) => {
 						await $({ signal: abortSignal })`git switch -C ${newBranch} ${remote}/${newBranch}`;
 						if (abortSignal.aborted) {
 							await $`git checkout ${currentBranch}`;
-							return { newName: 'Aborted', stepStatus: 'error' };
+							return { newName: 'Aborted branch switch', stepStatus: 'error' };
 						}
-						if (isDeploymentBranch(newBranch)) {
-							getLogger().info(`Switched to deployment branch "${newBranch}"`);
-							helpers.insertStep({
-								name: `Adjusting environment for deployment branch ${newBranch}`,
-								execute: skipActionIfAborted(async (abortSignal, helpers) => {
-									await replaceInTempEnvFile((line) => {
-										if (line.startsWith('RATOS_SCRIPT_DIR=')) {
-											return line.replace('/src/', '/app/');
-										}
-										return line;
-									});
-									reloadEnvironment(tempEnvFile);
-									if (process.cwd().endsWith('/src')) {
-										cd('..');
-										await $({ signal: abortSignal })`cp -r ${tempEnvFile} ./app/.env.local`;
-										const filesToDelete = await $`git clean -d -n`;
-										helpers.insertStep({
-											name: 'Cleaning up src directory',
-											prompt:
-												'The following files/directories will be deleted:\n\n' +
-												filesToDelete
-													.lines()
-													.map((line) => line.trim())
-													.join('\n') +
-												'\n\nDo you want to continue?',
-											execute: skipActionIfAborted(async (abortSignal, helpers) => {
-												await $({ signal: abortSignal })`git clean -d -f`;
-												return { newName: 'Cleaned up src directory', stepStatus: 'success' };
-											}),
-											status: 'pending',
-										});
-										helpers.insertStep({
-											name: 'Enabling configurator service',
-											execute: skipActionIfAborted(async (abortSignal, helpers) => {
-												await $({ signal: abortSignal })`sudo systemctl enable ratos-configurator`;
-												helpers.pushWarning(
-													'Configurator service has been enabled and will start automatically on boot.',
-												);
-												return { newName: 'Enabled configurator service', stepStatus: 'success' };
-											}),
-											status: 'pending',
-										});
-									}
-									return { newName: 'Adjusted environment for deployment branch', stepStatus: 'success' };
-								}),
-								status: 'pending',
-							});
-						} else {
-							getLogger().info(`Switched to development branch "${newBranch}"`);
-							helpers.insertStep({
-								name: `Adjusting environment for development branch ${newBranch}`,
-								execute: skipActionIfAborted(async (abortSignal, helpers) => {
-									await replaceInTempEnvFile((line) => {
-										if (line.startsWith('RATOS_SCRIPT_DIR=')) {
-											return line.replace('/app/', '/src/');
-										}
-										return line;
-									});
-									reloadEnvironment(tempEnvFile);
-									if (process.cwd().endsWith('/app')) {
-										cd('..');
-										await $({ signal: abortSignal })`cp -r ${tempEnvFile} ./src/.env.local`;
-										const filesToDelete = await $`git clean -d -n`;
-										helpers.insertStep({
-											name: 'Cleaning up app directory',
-											prompt:
-												'The following files/directories will be deleted:\n\n' +
-												filesToDelete
-													.lines()
-													.map((line) => line.trim())
-													.join('\n') +
-												'\n\nDo you want to continue?',
-											execute: skipActionIfAborted(async (abortSignal, helpers) => {
-												await $({ signal: abortSignal })`git clean -d -f`;
-												return { newName: 'Cleaned up app directory', stepStatus: 'success' };
-											}),
-											status: 'pending',
-										});
-										helpers.insertStep({
-											name: 'Disabling configurator service',
-											execute: skipActionIfAborted(async (abortSignal, helpers) => {
-												await $({ signal: abortSignal })`sudo systemctl disable ratos-configurator`;
-												helpers.pushWarning(
-													'Configurator service has been disabled, use `pnpm run dev` to start the configurator.',
-												);
-												return { newName: 'Disabled configurator service', stepStatus: 'success' };
-											}),
-											status: 'pending',
-										});
-										helpers.insertStep({
-											name: 'Building RatOS CLI',
-											execute: skipActionIfAborted(async (abortSignal, helpers) => {
-												cd('src');
-												await $({ signal: abortSignal })`pnpm install`;
-												await $({ signal: abortSignal })`pnpm run build:cli`;
-												cd('..');
-												return { newName: 'Built RatOS CLI', stepStatus: 'success' };
-											}),
-											status: 'pending',
-										});
-									}
-									return { newName: 'Adjusted environment for development branch', stepStatus: 'success' };
-								}),
-								status: 'pending',
-							});
-						}
-						return abortSignal.aborted
-							? { newName: 'Aborted branch switch', stepStatus: 'error' }
-							: { newName: 'Switched branch to ' + newBranch, stepStatus: 'success' };
+						getLogger().info(`Switched to branch "${newBranch}"`);
+						// Every branch shares the monorepo layout, so .env.local and the configured paths stay valid.
+						// update.sh (next step) installs dependencies and rebuilds the CLI for the new branch.
+						return { newName: 'Switched branch to ' + newBranch, stepStatus: 'success' };
 					},
 				},
 				{

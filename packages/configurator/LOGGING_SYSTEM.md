@@ -12,9 +12,9 @@ For now, the working intent is as follows:
 
 Observations/caveats:
 - Under some circumstances, logging from bash scripts may be based on the variables defined in `~/.ratos.env.system` (or variants thereof, see `configuration/scripts/environment.sh`). The path will be `$RATOS_PRINTER_DATA_DIR/logs/ratos-configurator.log` (which typically expands to `/home/pi/printer_data/logs/ratos-configurator.log`), unless var `LOG_FILE` is already defined in scope.
-- `LOG_FILE` is defined in `src|app/.env` (and variants), which is consumed primarily (exclusively?) by node-based code.
+- `LOG_FILE` is defined in `packages/configurator/.env` (and variants), which is consumed primarily (exclusively?) by node-based code.
 - Resolving this to a single source of truth will require careful consideration of all execution scenarios, including for example CI.
-- In node code, if `LOG_FILE` is not defined (eg, in `src|app/.env`), fallbacks include `/var/log/ratos-cli.log` and `/var/log/ratos-server.log`.
+- In node code, if `LOG_FILE` is not defined (eg, in `packages/configurator/.env`), fallbacks include `/var/log/ratos-cli.log` and `/var/log/ratos-server.log`.
 - Service/daemon `stdout` and `stderr` goes to `/var/log/ratos-configurator.log`
 
 ## Overview
@@ -72,7 +72,7 @@ log_script_complete "my-script.sh" $?
 
 **Note**: When using the unified logging system, log rotation is handled by the main RatOS log configuration, not by individual scripts.
 
-### 2. CLI Log Management (`src/cli/commands/update-logs.tsx`)
+### 2. CLI Log Management (`packages/cli/src/commands/update-logs.tsx`)
 
 The CLI provides several commands for viewing and analyzing update logs. **Update logs are now a subcommand of the main `logs` command** and automatically filter the main log file to show only entries with `source: "ratos-update"`.
 
