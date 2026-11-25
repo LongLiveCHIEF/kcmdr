@@ -19,8 +19,6 @@ log_script_start "ratos-update.sh" "2.1.0"
 
 # shellcheck source=configuration/scripts/ratos-common.sh
 source "$SCRIPT_DIR"/ratos-common.sh
-# shellcheck source=configuration/scripts/moonraker-ensure-policykit-rules.sh
-source "$SCRIPT_DIR"/moonraker-ensure-policykit-rules.sh
 
 ensure_system_packages()
 {
@@ -239,36 +237,60 @@ update_symlinks()
   echo "RatOS device symlinks are up to date!"
 }
 
-ensure_node_18()
+# Node major version the configurator and CLI run on. Keep it in step with NODE_MAJOR in the
+# image's modules/generic/56-nodejs.
+RATOS_NODE_MAJOR=22
+
+# ensure_nodejs() - Makes sure Node.js $RATOS_NODE_MAJOR or newer is installed
+#
+# Older installations get the NodeSource repository for Node $RATOS_NODE_MAJOR, set up the same
+# way as on the RatOS image, and an upgraded nodejs package. A newer Node is left alone.
+#
+ensure_nodejs()
 {
-	log_info "Ensuring Node 18 is installed" "ensure_node_18"
-	report_status "Ensuring Node 18 is installed"
+	log_info "Ensuring Node.js ${RATOS_NODE_MAJOR} or newer is installed" "ensure_nodejs"
+	report_status "Ensuring Node.js ${RATOS_NODE_MAJOR} or newer is installed"
 
-	if node -v | grep "^v18" > /dev/null; then
-		log_info "Node 18 already installed" "ensure_node_18"
-		echo "Node 18 already installed"
-	else
-		log_info "Installing Node 18" "ensure_node_18"
-		echo "Installing Node 18"
-
-		if execute_with_logging "ensure_node_18" "NODE_REPO_UPDATE_FAILED" sed -i 's/node_16\.x/node_18\.x/g' /etc/apt/sources.list.d/nodesource.list; then
-			if execute_with_logging "ensure_node_18" "APT_UPDATE_FAILED" apt-get update; then
-				if execute_with_logging "ensure_node_18" "NODE_INSTALL_FAILED" apt-get install -y nodejs; then
-					log_info "Node 18 installed successfully" "ensure_node_18"
-					echo "Node 18 installed!"
-				else
-					log_error "Failed to install Node 18" "ensure_node_18" "NODE_INSTALL_FAILED"
-					return 1
-				fi
-			else
-				log_error "Failed to update package lists" "ensure_node_18" "APT_UPDATE_FAILED"
-				return 1
-			fi
-		else
-			log_error "Failed to update Node.js repository configuration" "ensure_node_18" "NODE_REPO_UPDATE_FAILED"
-			return 1
-		fi
+	local installed_version installed_major keyring="/etc/apt/keyrings/nodesource.gpg"
+	installed_version=$(node --version 2>/dev/null || true)
+	installed_major=${installed_version#v}
+	installed_major=${installed_major%%.*}
+	if [[ "$installed_major" =~ ^[0-9]+$ ]] && (( installed_major >= RATOS_NODE_MAJOR )); then
+		log_info "Node.js ${installed_version} is installed" "ensure_nodejs"
+		echo "Node.js ${installed_version} is installed"
+		return 0
 	fi
+
+	log_info "Installing Node.js ${RATOS_NODE_MAJOR} (found: ${installed_version:-none})" "ensure_nodejs"
+	echo "Installing Node.js ${RATOS_NODE_MAJOR} (found: ${installed_version:-none})"
+
+	if ! execute_with_logging "ensure_nodejs" "NODE_REPO_UPDATE_FAILED" bash -c "
+		set -eo pipefail
+		install -d -m 0755 /etc/apt/keyrings
+		curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor --yes -o '${keyring}'
+		echo 'deb [signed-by=${keyring}] https://deb.nodesource.com/node_${RATOS_NODE_MAJOR}.x nodistro main' > /etc/apt/sources.list.d/nodesource.list
+	"; then
+		log_error "Failed to set up the NodeSource repository for Node.js ${RATOS_NODE_MAJOR}" "ensure_nodejs" "NODE_REPO_UPDATE_FAILED"
+		return 1
+	fi
+	if ! execute_with_logging "ensure_nodejs" "APT_UPDATE_FAILED" apt-get update; then
+		log_error "Failed to update package lists" "ensure_nodejs" "APT_UPDATE_FAILED"
+		return 1
+	fi
+	if ! execute_with_logging "ensure_nodejs" "NODE_INSTALL_FAILED" apt-get install -y nodejs; then
+		log_error "Failed to install Node.js ${RATOS_NODE_MAJOR}" "ensure_nodejs" "NODE_INSTALL_FAILED"
+		return 1
+	fi
+
+	installed_version=$(node --version 2>/dev/null || true)
+	installed_major=${installed_version#v}
+	installed_major=${installed_major%%.*}
+	if ! [[ "$installed_major" =~ ^[0-9]+$ ]] || (( installed_major < RATOS_NODE_MAJOR )); then
+		log_error "Node.js ${RATOS_NODE_MAJOR} was not installed (found: ${installed_version:-none})" "ensure_nodejs" "NODE_INSTALL_FAILED"
+		return 1
+	fi
+	log_info "Node.js ${installed_version} installed successfully" "ensure_nodejs"
+	echo "Node.js ${installed_version} installed!"
 }
 
 fix_klippy_env_ownership()
@@ -583,9 +605,8 @@ ensure_klipper_fork_migration()
 
 # flash_mcus_after_klipper_source_change() - Flashes connected MCUs after a Klipper migration
 #
-# Moonraker's Klipper updates flash MCUs through Klipper's post-merge hook, but the migration
-# switches commits with checkout and reset, which doesn't run that hook. Run the same script
-# here so MCU firmware matches the new Klipper source. Flashing restarts the Klipper service,
+# The migration switches the Klipper source with checkout and reset, so flash the connected MCUs
+# here so their firmware matches the new Klipper source. Flashing restarts the Klipper service,
 # so this runs after the Python requirements and extensions for the new source are in place.
 #
 # A board that fails to flash doesn't fail the update. flash-path.sh logs a warning naming the
@@ -627,7 +648,7 @@ main() {
 	update_symlinks || exit_code=1
 	ensure_sudo_command_whitelisting || exit_code=1
 	ensure_service_permission || exit_code=1
-	ensure_node_18 || exit_code=1
+	ensure_nodejs || exit_code=1
 	ensure_raspi_config_cpu_governor_default || exit_code=1
 	ensure_cpufrequtils_cpu_governor_default || exit_code=1
 	ensure_cpu_governor_active || exit_code=1
@@ -635,7 +656,6 @@ main() {
 	ensure_pip_requirements || exit_code=1
 	patch_klipperscreen_service_restarts || exit_code=1
 	install_beacon || exit_code=1
-	install_hooks || exit_code=1
 	remove_old_postprocessor || exit_code=1
 	symlink_extensions || exit_code=1
 	flash_mcus_after_klipper_source_change || exit_code=1

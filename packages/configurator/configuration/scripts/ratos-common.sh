@@ -122,41 +122,6 @@ remove_old_postprocessor()
 	fi
 }
 
-install_hooks()
-{
-    report_status "Verifying git hooks are installed..."
-	# Klipper hook
-	klipper_source="$SCRIPT_DIR/klipper-post-merge.sh"
-	klipper_target="${KLIPPER_DIR}/.git/hooks/post-merge"
-	if [[ ! -L "$klipper_target" ]] || [[ ! "$(readlink "$klipper_target")" = "$klipper_source" ]]
-	then
-		rm -f "$klipper_target"
-		ln -s "$klipper_source" "$klipper_target"
-		echo "Klipper git hook installed!"
-	fi
-
-	# Moonraker hook
-	moonraker_source="$SCRIPT_DIR/moonraker-post-merge.sh"
-	moonraker_target="${MOONRAKER_DIR}/.git/hooks/post-merge"
-	if [[ ! -L "$moonraker_target" ]] || [[ ! "$(readlink "$moonraker_target")" = "$moonraker_source" ]]
-	then
-		rm -f "$moonraker_target"
-		ln -s "$moonraker_source" "$moonraker_target"
-		echo "Moonraker git hook installed!"
-	fi
-
-	# Beacon hook
-	beacon_source="$SCRIPT_DIR/beacon-post-merge.sh"
-	beacon_target="${BEACON_DIR}/.git/hooks/post-merge"
-	if [[ ! -L "$beacon_target" ]] || [[ ! "$(readlink "$beacon_target")" = "$beacon_source" ]]
-	then
-		rm -f "$beacon_target"
-		ln -s "$beacon_source" "$beacon_target"
-		echo "Beacon git hook installed!"
-	fi
-	echo "Git hooks are correctly installed!"
-}
-
 ensure_service_permission()
 {
     report_status "Ensuring moonraker service permissions..."
@@ -227,7 +192,7 @@ patch_klipperscreen_service_restarts()
 ensure_sudo_command_whitelisting()
 {
     report_status "Updating whitelisted commands"
-	# Whitelist RatOS git hook scripts
+	# Whitelist the RatOS maintenance scripts (the file name is kept so it replaces the old one)
 	if [[ -e /etc/sudoers.d/030-ratos-githooks ]]
 	then
 		$SUDO rm /etc/sudoers.d/030-ratos-githooks
@@ -237,13 +202,12 @@ ensure_sudo_command_whitelisting()
 ${RATOS_USERNAME}  ALL=(ALL) NOPASSWD: ${RATOS_PRINTER_DATA_DIR}/config/RatOS/scripts/ratos-update.sh
 ${RATOS_USERNAME}  ALL=(ALL) NOPASSWD: ${RATOS_PRINTER_DATA_DIR}/config/RatOS/scripts/klipper-mcu-update.sh
 ${RATOS_USERNAME}  ALL=(ALL) NOPASSWD: ${RATOS_PRINTER_DATA_DIR}/config/RatOS/scripts/beacon-update.sh
-${RATOS_USERNAME}  ALL=(ALL) NOPASSWD: ${RATOS_PRINTER_DATA_DIR}/config/RatOS/scripts/moonraker-update.sh
 EOF
 
 	$SUDO chown root:root /tmp/030-ratos-githooks
 	$SUDO chmod 440 /tmp/030-ratos-githooks
 	$SUDO cp --preserve=mode /tmp/030-ratos-githooks /etc/sudoers.d/030-ratos-githooks
 
-	echo "RatOS git hooks has successfully been whitelisted!"
+	echo "RatOS maintenance scripts have been whitelisted!"
 }
 
