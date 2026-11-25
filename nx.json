@@ -23,13 +23,15 @@
           "buildDepsName": "build-deps",
           "watchDepsName": "watch-deps"
         }
-      }
+      },
+      "exclude": ["packages/configurator/**", "packages/cli/**", "packages/site/**"]
     },
     {
       "plugin": "@nx/oxlint",
       "options": {
         "targetName": "lint"
-      }
+      },
+      "exclude": ["packages/configurator/**", "packages/cli/**", "packages/site/**"]
     },
     {
       "plugin": "@nx/js/typescript",
@@ -43,7 +45,8 @@
           "buildDepsName": "build-deps",
           "watchDepsName": "watch-deps"
         }
-      }
+      },
+      "exclude": ["packages/configurator/**", "packages/cli/**", "packages/site/**"]
     },
     {
       "plugin": "@nx/vitest",
@@ -51,7 +54,8 @@
         "testTargetName": "test",
         "ciTargetName": "test-ci",
         "testMode": "watch"
-      }
+      },
+      "exclude": ["packages/configurator/**", "packages/cli/**", "packages/site/**"]
     }
   ],
   "targetDefaults": {

@@ -47,3 +47,5 @@ Thumbs.db
 vitest.config.*.timestamp*
 
 .nx/polygraph
+# Local printer_data for configurator development (packages/configurator/scripts/setup-local-dev.sh)
+/dev/printer_data/

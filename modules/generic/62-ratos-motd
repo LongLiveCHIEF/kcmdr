@@ -1,0 +1,32 @@
+#!/bin/bash
+set -xe
+export LC_ALL=C
+
+########################################
+# Functions and Basic Configuration    #
+########################################
+
+# Load common functions and set up cleanup trap
+source /common.sh
+install_cleanup_trap
+
+# Load additional configuration (e.g., BASE_USER)
+source /files/00-config
+
+########################################
+# Install the RatOS motd header        #
+########################################
+
+# Shows the RatOS logo, the RatOS and base OS versions, the board, and system and network status
+# on every image (Raspberry Pi OS and Armbian). On Armbian, 12-armbian-motd disables Armbian's own
+# header so only this one is shown.
+install -m 0755 /files/motd/10-ratos-header /etc/update-motd.d/10-ratos-header
+
+########################################
+# Remove what the header replaces      #
+########################################
+
+# The header shows the kernel version (Debian's 10-uname) and replaces the static /etc/motd,
+# which RatOS v2.1.x images also overwrote with the logo.
+rm -f /etc/update-motd.d/10-uname
+: > /etc/motd

@@ -1,0 +1,20 @@
+#### RatOS-configurator
+####
+#### Written by Mikkel Schmidt <mikkel.schmidt@gmail.com>
+#### Copyright 2022
+#### https://github.com/Rat-OS/RatOS-Configurator
+####
+#### This File is distributed under GPLv3
+####
+
+
+/home/@BASE_USER@/printer_data/logs/ratos-configurator.log {
+    rotate 3
+    missingok
+    notifempty
+    copy
+    daily
+    dateext
+    dateformat .%Y-%m-%d
+    maxsize 10M
+}

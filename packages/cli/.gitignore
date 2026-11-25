@@ -1,0 +1,6 @@
+# testing
+coverage
+report.xml
+
+# typescript
+*.tsbuildinfo

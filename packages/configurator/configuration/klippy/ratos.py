@@ -758,7 +758,17 @@ class RatOS:
 
 	def get_ratos_version(self):
 		version = '?'
-		path = pathlib.Path('/home/pi/ratos-configurator/.git')
+		install_dir = pathlib.Path('/home/pi/ratos-configurator')
+		path = install_dir / '.git'
+		if not path.exists():
+			# Release installs are extracted GitHub release archives without a git checkout.
+			# Their version is recorded in release_info.json.
+			try:
+				release_info = json.loads((install_dir / 'release_info.json').read_text())
+				return str(release_info.get('version', version))
+			except Exception as exc:
+				self.debug_echo("get_ratos_version", f"Error reading release_info.json: {exc}")
+				return version
 		gitdir = os.path.join(path, '..')
 		prog_desc = ('git', '-C', gitdir, 'describe', '--always',
 					'--tags', '--long', '--dirty')

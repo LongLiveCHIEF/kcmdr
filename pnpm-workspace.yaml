@@ -3,6 +3,16 @@ packages:
 
 autoInstallPeers: true
 allowBuilds:
+  esbuild: true
+  # Site (Docusaurus) dependencies: their scripts only print banners or fall back to building
+  # native code that the prebuilt platform packages already provide.
+  '@swc/core': false
+  '@tsparticles/engine': false
+  core-js: false
+  core-js-pure: false
+  sharp: false
   '@parcel/watcher': true
   nx: true
   unrs-resolver: true
+overrides:
+  react-remove-scroll: 2.5.9

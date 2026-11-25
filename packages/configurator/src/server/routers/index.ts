@@ -17,6 +17,7 @@ import { PinoLogEvent } from '@/zods/util';
 import { analysisRouter } from '@/server/routers/analysis';
 import { updateLogsRouter } from '@/server/routers/update-logs';
 import { getDebugZipFiles } from '@/pages/api/debug-zip';
+import { getInstalledConfiguratorVersion } from '@/server/helpers/version';
 
 export const appRouter = router({
 	clientLog: publicProcedure
@@ -38,9 +39,7 @@ export const appRouter = router({
 			);
 		}),
 	version: publicProcedure.query(async () => {
-		return (await promisify(exec)('git describe --tags --always', {
-			cwd: process.env.RATOS_CONFIGURATION_PATH,
-		}).then(({ stdout }) => stdout.trim())) as GitVersion;
+		return await getInstalledConfiguratorVersion(process.env.RATOS_CONFIGURATION_PATH);
 	}),
 	klipperVersion: publicProcedure.query(async () => {
 		return (await promisify(exec)('git describe --tags --always', { cwd: process.env.KLIPPER_DIR }).then(({ stdout }) =>

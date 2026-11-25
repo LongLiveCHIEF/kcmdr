@@ -1,12 +1,29 @@
-# next.js
-/src/.next/
-/src/out/
-/src/build/
+# dependencies
+node_modules
+.pnp
+.pnp.js
 
-# Bin build
-/src/bin/*.js
-/src/bin/*.mjs
-/src/bin/*.wasm
+# next.js
+/.next/
+/out/
+/dist/
+
+# testing
+coverage
+report.xml
+eslint_report.json
+
+# local env files
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
 
 # misc
 .DS_Store
@@ -18,12 +35,8 @@
 *.log
 
 # SciChart data
-src/public/scichart*
-src/public/tfjs*
-
-# Default printer config directory for development
-devbox.d/printer-config/
-devbox.d/klipper/
+public/scichart*
+public/tfjs*
 
 # artifacts for local deployment tests
 /artifacts

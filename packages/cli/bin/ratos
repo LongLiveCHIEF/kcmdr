@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+SCRIPT_DIR=$( cd -- "$( dirname -- "$(realpath -- "${BASH_SOURCE[0]}")" )" &> /dev/null && pwd )
+CLI_DIR=$(realpath "$SCRIPT_DIR/..")
+WORKSPACE_DIR=$(realpath "$CLI_DIR/../..")
+APP_DIR="$WORKSPACE_DIR/packages/configurator"
+
+# Relative paths given to commands are resolved against the caller's directory.
+RATOS_BIN_CWD=$(pwd)
+export RATOS_BIN_CWD
+
+# Per-printer settings (installed images) live with the other service environment files in the
+# printer_data of the user that owns the installation, also when the CLI runs through sudo.
+if [ -z "${RATOS_ENV_FILE:-}" ]; then
+	install_owner_home=$(getent passwd "$(stat -c %U "$WORKSPACE_DIR")" | cut -d: -f6)
+	if [ -n "$install_owner_home" ] && [ -f "$install_owner_home/printer_data/systemd/ratos-configurator.env" ]; then
+		export RATOS_ENV_FILE="$install_owner_home/printer_data/systemd/ratos-configurator.env"
+	fi
+fi
+
+# The CLI reads the configurator's .env and package.json from its working directory.
+cd "$APP_DIR" || exit 1
+exec node "$CLI_DIR/dist/ratos.mjs" "$@"

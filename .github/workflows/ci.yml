@@ -5,6 +5,8 @@ on:
     branches:
       - main
   pull_request:
+  # Lets the release workflow run the full CI before publishing.
+  workflow_call:
 
 permissions:
   actions: read
@@ -19,10 +21,11 @@ jobs:
           filter: tree:0
           fetch-depth: 0
 
+      # Match the versions in mise.toml; the lockfile is written by pnpm 12.
       - uses: pnpm/action-setup@v4
         name: Install pnpm
         with:
-          version: 9.8.0
+          version: 12
           run_install: false
 
       # This enables task distribution via Nx Cloud
@@ -34,14 +37,50 @@ jobs:
       # Cache node_modules
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 26
           cache: 'pnpm'
 
       - run: pnpm install --frozen-lockfile
 
+      # The configurator tests read Klipper/Moonraker sources and the RatOS configuration.
+      # Clone them outside the workspace so nx doesn't scan them.
+      - name: Checkout Klipper and Moonraker
+        run: |
+          git clone --depth 1 https://github.com/Klipper3d/klipper.git "$RUNNER_TEMP/klipper"
+          git clone --depth 1 https://github.com/Arksine/moonraker.git "$RUNNER_TEMP/moonraker"
+
+      - name: Write configurator environment
+        run: |
+          app="$GITHUB_WORKSPACE/packages/configurator"
+          mkdir -p "$RUNNER_TEMP/printer_data/config" "$RUNNER_TEMP/printer_data/ratos" "$RUNNER_TEMP/printer_data/logs"
+          cat > "$app/.env.local" <<EOF
+          RATOS_CONFIGURATION_PATH=$app/configuration
+          KLIPPER_CONFIG_PATH=$RUNNER_TEMP/printer_data/config
+          RATOS_SCRIPT_DIR=$app/src/scripts
+          KLIPPER_DIR=$RUNNER_TEMP/klipper
+          KLIPPER_ENV=$RUNNER_TEMP/klippy-env
+          MOONRAKER_DIR=$RUNNER_TEMP/moonraker
+          LOG_FILE=$RUNNER_TEMP/printer_data/logs/ratos-configurator.log
+          RATOS_DATA_DIR=$RUNNER_TEMP/printer_data/ratos
+          EOF
+
+      - name: Test RatOS logging
+        working-directory: packages/configurator
+        run: ./scripts/test-ratos-logging.sh
+
+      - name: Bash syntax check
+        working-directory: packages/configurator
+        run: ./scripts/validate-bash-syntax.sh --quiet
+
       # Prepend any command with "nx record --" to record its logs to Nx Cloud
       # - run: pnpm exec nx record -- echo Hello World
-      - run: pnpm exec nx run-many -t lint test build typecheck
+      - run: pnpm exec nx run-many -t lint typecheck test
+
+      # Next.js must build with a standard NODE_ENV; tests above must not run with production.
+      - run: pnpm exec nx run-many -t build
+        env:
+          NODE_ENV: production
+
       # Nx Cloud recommends fixes for failures to help you get CI green faster. Learn more: https://nx.dev/ci/features/self-healing-ci
       - run: pnpm exec nx fix-ci
         if: always()

@@ -18,7 +18,7 @@ if [[ -z "${RATOS_PRINTER_DATA_DIR:-}" ]]; then
 	exit 1
 fi
 
-# NOTE/TODO: environment.sh DOES NOT source ~/ratos-configurator/src|app/.env, so don't expect it to
+# NOTE/TODO: environment.sh DOES NOT source ~/ratos-configurator/packages/configurator/.env, so don't expect it to
 # be set at this point. This is the expected behaviour of environment.sh, which sources from
 # ~/.ratos.env (and some variants, see that script for details).
 # See NOTE! at the top of /LOGGING_SYSTEM.md for more details/discussion.

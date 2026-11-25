@@ -1,0 +1,46 @@
+name: Deploy docs to GitHub Pages
+
+# Builds the RatOS site (packages/site) and publishes it to the gh-pages branch.
+# Note: packages/site/static/CNAME (os.ratrig.com) is published with it.
+on:
+  push:
+    branches: [main]
+    paths: [packages/site/**]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deploy-docs
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy to GitHub Pages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        name: Install pnpm
+        with:
+          version: 12
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: 'pnpm'
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build website
+        run: pnpm exec nx run site:build
+
+      # Docs: https://github.com/peaceiris/actions-gh-pages#%EF%B8%8F-docusaurus
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./packages/site/dist

@@ -1,0 +1,26 @@
+[Unit]
+Description=RatOS Configurator
+Documentation=https://os.ratrig.com/
+Requires=network-online.target
+After=network-online.target
+
+[Install]
+WantedBy=multi-user.target
+
+[Service]
+Type=simple
+User=@BASE_USER@
+SupplementaryGroups=ratos-configurator
+RemainAfterExit=yes
+WorkingDirectory=/home/@BASE_USER@/ratos-configurator/packages/configurator
+# Per-printer settings. The configurator also reads the file named by RATOS_ENV_FILE, so the
+# CLI and the server agree on them.
+EnvironmentFile=/home/@BASE_USER@/printer_data/systemd/ratos-configurator.env
+Environment=RATOS_ENV_FILE=/home/@BASE_USER@/printer_data/systemd/ratos-configurator.env
+Environment=NODE_ENV=production
+Environment=NEXT_TELEMETRY_DISABLED=1
+ExecStart=/usr/bin/node node_modules/next/dist/bin/next start
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/ratos-configurator.log
+StandardError=append:/var/log/ratos-configurator.log

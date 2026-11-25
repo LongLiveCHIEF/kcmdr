@@ -1,0 +1,52 @@
+{
+  "compilerOptions": {
+    "target": "es2018",
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "baseUrl": ".",
+    "paths": {
+      "@/public/*": [
+        "public/*"
+      ],
+      "@/tailwind.config": [
+        "tailwind.config.ts"
+      ],
+      "@/*": [
+        "src/*"
+      ]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "dist/types/**/*.ts",
+    "**/*.d.ts",
+    "**/*.ts",
+    "**/*.tsx"
+  ],
+  "ts-node": {
+    "require": ["tsconfig-paths/register"]
+  },
+  "exclude": [
+    "node_modules"
+  ]
+}
