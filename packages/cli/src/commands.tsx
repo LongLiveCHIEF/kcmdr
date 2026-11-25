@@ -18,7 +18,6 @@ import { getLogger } from '@/cli/logger';
 import { frontend } from '@/cli/commands/frontend';
 import { postprocessor } from '@/cli/commands/postprocessor';
 import { updateLogs } from '@/cli/commands/update-logs';
-import development from '@/cli/commands/development';
 
 export const program = new commander.Command()
 	.name('ratos')
@@ -490,8 +489,6 @@ log
 // Add update-logs as a subcommand of the log command
 updateLogs(log);
 
-development(program);
-
 const doctor = program
 	.command('doctor')
 	.description('Diagnose and fix common issues on a RatOS installation')
@@ -510,19 +507,9 @@ const doctor = program
 		});
 
 		const steps: InstallStep[] = [];
+		// The configurator itself is installed by the RatOS image and updated by Moonraker, so the
+		// doctor only restarts it and repairs the configuration.
 		let { rerender } = render(
-			<InstallProgressUI
-				status="Fixing potential RatOS issues..."
-				stepText="Repairing RatOS configurator..."
-				isLoading={true}
-				cmdSignal={cmdSignal}
-				steps={steps}
-			/>,
-		);
-
-		await $$`sudo ${loadEnvironment().RATOS_SCRIPT_DIR}/update.sh`;
-		steps.push({ name: 'Repaired RatOS configurator', status: 'success' });
-		rerender(
 			<InstallProgressUI
 				status="Fixing potential RatOS issues..."
 				stepText="Restarting RatOS configurator..."

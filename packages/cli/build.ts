@@ -56,6 +56,17 @@ let wasmPlugin = {
 	},
 };
 
+// zx's ESM entry loads its CommonJS build through createRequire(), which esbuild can't follow,
+// so the bundle would still need zx at runtime. Bundle the CommonJS build (what require.resolve
+// picks) directly instead.
+const zxCjsPlugin = {
+	name: 'zx-cjs',
+	setup(build: any) {
+		const zxCjs = createRequire(import.meta.url).resolve('zx');
+		build.onResolve({ filter: /^zx$/ }, () => ({ path: zxCjs }));
+	},
+};
+
 const outdir = 'dist';
 
 await fs.promises.rm(outdir, { recursive: true, force: true });
@@ -65,14 +76,14 @@ await esbuild.build({
 		ratos: 'src/ratos.tsx',
 	},
 	bundle: true,
-	external: ['zx'],
+	// Everything is bundled (including zx) so the released CLI runs without node_modules.
 	platform: 'node',
 	outExtension: { '.js': '.mjs' },
 	outdir,
 	target: 'node18',
 	format: 'esm',
 	inject: ['src/cjs-shim.ts'],
-	plugins: [wasmPlugin, pinoshim({ transports: ['pino-pretty'] })],
+	plugins: [wasmPlugin, zxCjsPlugin, pinoshim({ transports: ['pino-pretty'] })],
 });
 
 // ink's yoga-wasm-web loads ./yoga.wasm relative to the bundle at runtime, so ship the

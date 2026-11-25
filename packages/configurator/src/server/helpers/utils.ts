@@ -8,6 +8,20 @@ let alreadyLoaded = false;
 export function resetEnvironment() {
 	alreadyLoaded = false;
 }
+
+/**
+ * Per-printer settings on installed images. RATOS_ENV_FILE points at
+ * ~/printer_data/systemd/ratos-configurator.env, which is also the service's EnvironmentFile
+ * and is rewritten by MainsailOS when the user is renamed. Its values override the defaults
+ * from the package's .env files.
+ */
+function readPrinterEnvironment(): Record<string, string> {
+	const printerEnvFile = process.env.RATOS_ENV_FILE;
+	if (!printerEnvFile || !existsSync(printerEnvFile)) {
+		return {};
+	}
+	return dotenv.parse(readFileSync(printerEnvFile, 'utf8'));
+}
 export function loadEnvironment(filePath?: string) {
 	if (alreadyLoaded) {
 		return serverSchema.parse(process.env);
@@ -40,7 +54,11 @@ export function loadEnvironment(filePath?: string) {
 
 	const envFile = readFileSync(envFilePath, 'utf8');
 	const defaultNodeEnv = process.env.NODE_ENV === 'test' ? 'test' : 'production';
-	const env = serverSchema.parse({ NODE_ENV: defaultNodeEnv, ...dotenv.parse(envFile) });
+	const env = serverSchema.parse({
+		NODE_ENV: defaultNodeEnv,
+		...dotenv.parse(envFile),
+		...readPrinterEnvironment(),
+	});
 	dotenv.populate(process.env as any, env, { override: true });
 	alreadyLoaded = true;
 	return env;

@@ -637,7 +637,6 @@ main() {
 	install_beacon || exit_code=1
 	install_hooks || exit_code=1
 	remove_old_postprocessor || exit_code=1
-	verify_registered_extensions || exit_code=1
 	symlink_extensions || exit_code=1
 	flash_mcus_after_klipper_source_change || exit_code=1
 	update_beacon_fw || exit_code=1

@@ -9,7 +9,7 @@
 # shellcheck disable=SC2034  # variables exported for callers
 
 ### Setup (variables are intentionally exported for callers)
-SERVICES=(moonraker klipper nginx sonar crowsnest)
+SERVICES=(moonraker klipper nginx sonar crowsnest ratos-configurator)
 SYSTEMD_DIR="/etc/systemd/system"
 DEFAULT_USER="$(getent passwd 1000 | cut -d: -f1)"
 LIB_DIR="/usr/local/lib/mainsailos"
@@ -173,6 +173,48 @@ fix_kiauh_links() {
     ln -sf "${src_dir}/kiauh.sh" "${target_dir}/kiauh"
 }
 
+## RatOS configurator: files outside the units and printer_data/systemd that name the default
+## user or point into its home. Its unit and env file are handled by change_service_user and
+## change_env_user.
+fix_ratos() {
+    local home install_dir app_dir f target
+    home="/home/${DEFAULT_USER}"
+    install_dir="${home}/ratos-configurator"
+    app_dir="${install_dir}/packages/configurator"
+    [[ -d "${install_dir}" ]] || return 0
+
+    # sudoers whitelist for the configurator's helper scripts
+    for f in /etc/sudoers.d/031-ratos-configurator-scripts /etc/sudoers.d/031-ratos-configurator-wifi; do
+        [[ -f "${f}" ]] || continue
+        sed -i -e "s|^@BASE_USER@ |${DEFAULT_USER} |" -e "s|/home/@BASE_USER@/|${home}/|g" "${f}"
+    done
+
+    # RatOS environment used by the configuration's scripts (RATOS_USERNAME, paths)
+    for f in /usr/local/etc/.ratos.env "${home}/.ratos.env.system" "${home}/.ratos.env"; do
+        [[ -f "${f}" ]] || continue
+        sed -i -e "s|/home/@BASE_USER@/|${home}/|g" -e "s|=@BASE_USER@$|=${DEFAULT_USER}|" "${f}"
+    done
+
+    # Log rotation, and the configurator's extension registries. It re-registers RatOS's own
+    # extensions and re-links all of them on every start; this keeps third-party ones working.
+    [[ -f /etc/logrotate.d/ratos-configurator ]] && \
+        sed -i "s|/home/@BASE_USER@/|${home}/|g" /etc/logrotate.d/ratos-configurator
+    for f in "${home}/printer_data/ratos/klippy-extensions.json" "${home}/printer_data/ratos/moonraker-extensions.json"; do
+        [[ -f "${f}" ]] && sed -i "s|/home/@BASE_USER@/|${home}/|g" "${f}"
+    done
+
+    # Links into the installation
+    ln -sfn "${install_dir}/packages/cli/bin/ratos" /usr/local/bin/ratos
+    sudo -u "${DEFAULT_USER}" ln -sfn "${app_dir}/configuration" "${home}/printer_data/config/RatOS"
+    for f in /etc/udev/rules.d/*.rules; do
+        [[ -L "${f}" ]] || continue
+        target="$(readlink "${f}")"
+        if [[ "${target}" == /home/@BASE_USER@/* ]]; then
+            ln -sf "${home}/${target#/home/@BASE_USER@/}" "${f}"
+        fi
+    done
+}
+
 ### Apply all transforms via run_step (continue-on-error).
 postrename_apply_all() {
     run_step "stop_services"           stop_services
@@ -185,6 +227,7 @@ postrename_apply_all() {
     run_step "fix_timelapse_links"     fix_timelapse_links
     run_step "fix_mainsailcfg_links"   fix_mainsailcfg_links
     run_step "fix_kiauh_links"         fix_kiauh_links
+    run_step "fix_ratos"               fix_ratos
     run_step "systemctl daemon-reload" systemctl daemon-reload
     sleep 2
     run_step "start_services"          start_services

@@ -1,14 +1,16 @@
 name: "Build Images"
 
+# Builds the RatOS images with the configurator packaged from the same commit.
+
 on:
   push:
     branches:
-      - "develop"
+      - "main"
   pull_request:
     types: [opened, edited, reopened, synchronize]
     paths:
       - "modules/**"
-      - ".github/workflows/build.yml"
+      - ".github/workflows/build-os.yml"
       - "config.yml"
   workflow_dispatch:
 
@@ -36,8 +38,41 @@ jobs:
           with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
               print(f"matrix={json.dumps(matrix)}", file=fh)
 
+  package-configurator:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "📥 Checkout"
+        uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v4
+        name: Install pnpm
+        with:
+          version: 12
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: 'pnpm'
+
+      - run: pnpm install --frozen-lockfile
+
+      # release_info.json gets the VERSION file's version (the package script's default).
+      - name: "📦 Build and package the configurator"
+        run: pnpm exec nx run ratos-configurator:package
+        env:
+          NODE_ENV: production
+          RELEASE_REPO: ${{ github.repository }}
+
+      - name: "📋 Upload for the image builds"
+        uses: actions/upload-artifact@v7
+        with:
+          name: ratos-configurator
+          path: dist/release/ratos-configurator.tar.gz
+          if-no-files-found: error
+
   build:
-    needs: generate-matrix
+    needs: [ generate-matrix, package-configurator ]
     runs-on: ubuntu-26.04-arm
     strategy:
       fail-fast: false
@@ -117,6 +152,13 @@ jobs:
             cp "modules/special/${module}" scripts/
           done
 
+      # Read by modules/generic/50-kalico and 70-ratos inside the image.
+      - name: "📦 Add the RatOS configurator release"
+        uses: actions/download-artifact@v8
+        with:
+          name: ratos-configurator
+          path: scripts/files/ratos
+
       - name: "📇 Generate config.local"
         shell: python
         run: |
@@ -147,7 +189,7 @@ jobs:
       - name: "✏ Rename image"
         working-directory: ./build
         run: |
-          IMAGE="${{ env.DATE }}-MainsailOS-${{ matrix.name }}-${{ env.RELEASE_TAG }}.img"
+          IMAGE="${{ env.DATE }}-RatOS-${{ matrix.name }}-${{ env.RELEASE_TAG }}.img"
           echo "IMAGE=$IMAGE" >> $GITHUB_ENV
 
           mv output.img "${IMAGE}"

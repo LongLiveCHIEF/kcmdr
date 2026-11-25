@@ -6,6 +6,7 @@ export const register = async () => {
 		const { existsSync, mkdirSync } = await import('fs');
 		const { regenerateKlipperConfiguration } = await import('./server/routers/printer');
 		const { serverSchema } = await import('./env/schema.mjs');
+		const { ensureRatosExtensions } = await import('./server/helpers/ratos-extensions');
 		const { symlinkKlippyExtensions } = await import('./server/routers/klippy-extensions');
 		const { symlinkMoonrakerExtensions } = await import('./server/routers/moonraker-extensions');
 		const { klipperRestart } = await import('./server/helpers/klipper');
@@ -18,6 +19,17 @@ export const register = async () => {
 		if (!existsSync(dataDir)) {
 			logger.info('Creating RatOS data directory..');
 			mkdirSync(dataDir);
+		}
+		try {
+			// Register the extensions this release needs (and retire old ones) before linking them.
+			logger.info('Verifying registered RatOS extensions...');
+			for (const line of await ensureRatosExtensions()) {
+				logger.info(line);
+			}
+		} catch (e) {
+			if (e instanceof Error) {
+				logger.error(`Failed to verify RatOS extensions: ${e.message}`);
+			}
 		}
 		try {
 			logger.info('Symlinking klippy extensions...');

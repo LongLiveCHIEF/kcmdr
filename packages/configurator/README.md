@@ -65,34 +65,34 @@ Run tasks with nx from the workspace root:
 * `pnpm nx run ratos-configurator:build` to build the configurator into `packages/configurator/dist`
 * `pnpm nx run ratos-cli:build` to build the CLI into `packages/cli/dist`
 
-### Releases
+### Releases and the RatOS image
 
-Releases are published as GitHub releases by the `Release` workflow when a `v*` tag is pushed. Tags with a suffix, such as `v2.2.0-beta.1`, become pre-releases. Each release has two archives with the same contents: `ratos-configurator.tar.gz`, which keeps file modes, and `ratos-configurator.zip`. They contain the runtime subset of the monorepo:
+RatOS is released from the workspace root with the `Release` workflow (`.github/workflows/release-os.yml`, started manually with a version such as `3.1.0`; suffixed versions like `3.1.0-beta.1` are tagged the same way). One GitHub release, tagged with that version, contains:
+
+* the RatOS images for every board in `config.yml`, built on MainsailOS with Kalico, Moonraker, Mainsail and the configurator
+* `ratos-configurator.zip` and `ratos-configurator.tar.gz`, the prebuilt configurator that the images install and that Moonraker updates from
+
+The configurator release is ready to run. It carries its runtime dependencies (a flat `node_modules` without symlinks), so printers never run a package manager:
 
 ```
-release_info.json  package.json  pnpm-workspace.yaml  pnpm-lock.yaml
-packages/configurator/{package.json,next.config.mjs,.env,public,dist,configuration,scripts,src/scripts}
+release_info.json
+packages/configurator/{package.json,next.config.mjs,.env,public,dist,configuration,src/scripts,node_modules}
 packages/cli/{package.json,bin,dist}
 ```
 
-To build a release locally, run the following. The output goes to `dist/release` at the workspace root:
+To build it locally, run the following. The output goes to `dist/release` at the workspace root:
 
 ```bash
-RELEASE_VERSION=v2.1.0 pnpm nx run ratos-configurator:package
+pnpm nx run ratos-configurator:package
 ```
 
-To install a release, extract it to `~/ratos-configurator`, then run `packages/configurator/src/scripts/setup.sh`. The scripts detect a release install from `release_info.json` and install only production dependencies (`pnpm install --frozen-lockfile --prod`). In a source checkout they install everything and build the CLI.
+The image module `modules/generic/70-ratos` installs it to `~/ratos-configurator`: service, sudoers whitelist, udev rules, logrotate, the `ratos` command, and the RatOS configuration (`ratos-install.sh` / `ratos-post-install.sh`).
 
-#### Updates
+#### Updates and settings
 
-Moonraker updates release installs through the `type: zip` entry for `ratos-configurator` in `configuration/moonraker.conf`. It replaces `~/ratos-configurator` with the new release's `ratos-configurator.zip` and restarts the `ratos-configurator` service. The service then finishes the install with `src/scripts/release-update.sh`:
+Moonraker updates the configurator through the `type: zip` entry for `ratos-configurator` in `configuration/moonraker.conf`. It replaces `~/ratos-configurator` with the newest release's `ratos-configurator.zip` and restarts the service; nothing else runs on the printer. Kalico, Moonraker, Mainsail and the rest are updated by their own Moonraker entries. `configuration/scripts/ratos-update.sh` is no longer run automatically (`ratos doctor` still runs it).
 
-* `ExecStartPre` runs `update.sh` (dependencies, CLI link, udev rules, sudoers, service file) once per release.
-* `ExecStartPost` queues `configuration/scripts/ratos-update.sh` in a transient unit once per release. It runs after the configurator answers, because it registers Klipper extensions through it.
-
-Moonraker wipes the install folder on update and keeps only the top-level `persistent_files`. Put a printer's configurator overrides in `~/ratos-configurator/.env.local`; the scripts link it to `packages/configurator/.env.local`. An existing `packages/configurator/.env.local` is moved there automatically.
-
-Source checkouts still update through the git `post-merge` hook, and Moonraker reports them as invalid `zip` installs.
+Per-printer settings live in `~/printer_data/systemd/ratos-configurator.env`, next to `klipper.env` and `moonraker.env`. The service loads it as its `EnvironmentFile`, and the server and `ratos` CLI read it through `RATOS_ENV_FILE`, so its values override the defaults in the package's `.env`. MainsailOS rewrites it, along with the RatOS service, sudoers entries and links, when the user is renamed in Raspberry Pi Imager.
 
 ## Help and support
 

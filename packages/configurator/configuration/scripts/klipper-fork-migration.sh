@@ -163,10 +163,10 @@ run_git() {
 
 # Migration constants (readonly to prevent accidental modification)
 readonly OFFICIAL_KLIPPER_URL="https://github.com/Klipper3d/klipper.git"
-# RatOS's Kalico-based fork, which carries the features RatOS depends on.
-# TESTING: this points at the test fork on LongLiveCHIEF's GitHub account. Before release,
-# switch it to https://github.com/Rat-OS/kalico.git and TARGET_BRANCH to ratos/v2.1.x.
-readonly RATOS_FORK_URL="https://github.com/LongLiveCHIEF/kalico.git"
+# RatOS's Kalico-based fork (RATOS_FORK_URL, RATOS_FORK_BRANCH), shared with the image build.
+# shellcheck source=configuration/scripts/klipper-fork.env
+source "$SCRIPT_DIR/klipper-fork.env"
+readonly RATOS_FORK_URL
 # Sources that are migrated to RATOS_FORK_URL
 readonly DEPRECATED_FORK_URLS=(
 	"https://github.com/Rat-OS/klipper.git" # previous RatOS fork of Klipper
@@ -176,7 +176,7 @@ readonly DEPRECATED_FORK_URLS=(
 readonly RATOS_FORK_REMOTE="ratos-fork"
 # Branch on RATOS_FORK_URL. Printers check it out as a local branch of the same name, and
 # are reset to the commit pinned in moonraker.conf.
-readonly TARGET_BRANCH="add-ratos-dependent-features"
+readonly TARGET_BRANCH="$RATOS_FORK_BRANCH"
 readonly MOONRAKER_CONF_PATH="$SCRIPT_DIR/../moonraker.conf"
 
 # extract_target_commit_from_moonraker() - Dynamically extracts klipper pinned_commit from moonraker.conf

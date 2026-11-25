@@ -13,11 +13,7 @@ install_cleanup_trap
 # Load additional configuration (e.g., BASE_USER)
 source /files/00-config
 
-########################################
-# Copy motd config                     #
-########################################
-
-cp /files/motd/10-mainsailos-header /etc/update-motd.d/10-mainsailos-header
+# The RatOS header itself is installed for every image by generic/62-ratos-motd.
 
 ########################################
 # fix file permissions                 #

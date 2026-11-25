@@ -46,7 +46,7 @@ verify_ready
 install_printer_config
 install_udev_rules
 install_beacon
-install_hooks
+# No git hooks: Kalico, Moonraker and Beacon are updated by Moonraker's update manager.
 install_dependencies
 ensure_sudo_command_whitelisting
-verify_registered_extensions
+# The configurator registers and links the Klipper extensions when it starts.

@@ -1,0 +1,182 @@
+#!/bin/bash
+set -xe
+export LC_ALL=C
+
+########################################
+# Functions and Basic Configuration    #
+########################################
+
+# Load common functions and set up cleanup trap
+source /common.sh
+install_cleanup_trap
+
+# Load additional configuration (e.g., BASE_USER)
+source /files/00-config
+
+########################################
+# Configuration                        #
+########################################
+
+# The RatOS configurator release built from the same commit as this image (the build workflow puts
+# it in /files/ratos). It is prebuilt with its runtime dependencies: nothing is installed with a
+# package manager here or on the printer, and Moonraker updates it from later releases.
+CONFIGURATOR_RELEASE="/files/ratos/ratos-configurator.tar.gz"
+
+USER_HOME="/home/${BASE_USER}"
+INSTALL_DIR="${USER_HOME}/ratos-configurator"
+APP_DIR="${INSTALL_DIR}/packages/configurator"
+CLI_DIR="${INSTALL_DIR}/packages/cli"
+SCRIPT_DIR="${APP_DIR}/src/scripts"
+CONFIG_DIR="${USER_HOME}/printer_data/config"
+ENV_FILE="${USER_HOME}/printer_data/systemd/ratos-configurator.env"
+BUILD_SUDOERS="/etc/sudoers.d/099-ratos-build"
+SERVER_LOG="/tmp/ratos-configurator-build.log"
+
+as_user() {
+    sudo -u "${BASE_USER}" -H "$@"
+}
+
+install_sudoers() {
+    local name="$1"
+    local tmp
+    tmp=$(mktemp)
+    cat > "${tmp}"
+    visudo -cf "${tmp}"
+    install -o root -g root -m 0440 "${tmp}" "/etc/sudoers.d/${name}"
+    rm -f "${tmp}"
+}
+
+########################################
+# Install the configurator release     #
+########################################
+
+create_user_directories
+
+echo "Installing the RatOS configurator release"
+as_user mkdir -p "${INSTALL_DIR}"
+as_user tar -xzf "${CONFIGURATOR_RELEASE}" -C "${INSTALL_DIR}"
+cat "${INSTALL_DIR}/release_info.json"
+
+########################################
+# Per-printer settings                 #
+########################################
+
+# Like klipper.env and moonraker.env, kept in printer_data/systemd: Moonraker updates don't touch it,
+# and MainsailOS's postrename rewrites it when the user is renamed.
+as_user install -m 0644 "${APP_DIR}/.env" "${ENV_FILE}"
+
+########################################
+# Service                              #
+########################################
+
+groupadd -f ratos-configurator
+sed "s|@BASE_USER@|${BASE_USER}|g" /files/ratos/ratos-configurator.service \
+    > /etc/systemd/system/ratos-configurator.service
+systemctl_if_exists enable ratos-configurator.service
+
+# Let Moonraker restart the configurator after updates
+ASVC="${USER_HOME}/printer_data/moonraker.asvc"
+if ! grep -qx "ratos-configurator" "${ASVC}" 2>/dev/null; then
+    echo "ratos-configurator" | as_user tee -a "${ASVC}" > /dev/null
+fi
+
+########################################
+# Privileges for configurator scripts  #
+########################################
+
+install_sudoers 031-ratos-configurator-scripts << EOF
+${BASE_USER}  ALL=(ALL) NOPASSWD: ${SCRIPT_DIR}/add-wifi-network.sh
+${BASE_USER}  ALL=(ALL) NOPASSWD: ${SCRIPT_DIR}/change-hostname.sh
+${BASE_USER}  ALL=(ALL) NOPASSWD: ${SCRIPT_DIR}/dfu-flash.sh
+${BASE_USER}  ALL=(ALL) NOPASSWD: ${SCRIPT_DIR}/board-script.sh
+${BASE_USER}  ALL=(ALL) NOPASSWD: ${SCRIPT_DIR}/flash-path.sh
+${BASE_USER}  ALL=(ALL) NOPASSWD: ${SCRIPT_DIR}/klipper-compile.sh
+EOF
+
+install_sudoers 031-ratos-configurator-wifi << EOF
+${BASE_USER}  ALL=(ALL) NOPASSWD: /usr/sbin/iw
+${BASE_USER}  ALL=(ALL) NOPASSWD: /usr/sbin/wpa_cli
+EOF
+
+########################################
+# udev rules, logs and the CLI         #
+########################################
+
+ln -sf "${SCRIPT_DIR}/ratos.rules" /etc/udev/rules.d/97-ratos.rules
+ln -sf "${SCRIPT_DIR}/vaoc.rules" /etc/udev/rules.d/97-vaoc.rules
+
+sed "s|@BASE_USER@|${BASE_USER}|g" /files/ratos/logrotate > /etc/logrotate.d/ratos-configurator
+# Written by the RatOS udev scripts (klipper-mcu-added.sh)
+touch /var/log/ratos.log
+
+ln -sf "${CLI_DIR}/bin/ratos" /usr/local/bin/ratos
+
+########################################
+# RatOS configuration and theme        #
+########################################
+
+as_user ln -sfn "${APP_DIR}/configuration" "${CONFIG_DIR}/RatOS"
+
+# Theme repository and branch as Moonraker's update manager tracks them
+THEME_SECTION=$(awk '
+    /^\[update_manager RatOSTheme\]/ { in_section = 1; next }
+    /^\[/ { in_section = 0 }
+    in_section { print }
+' "${APP_DIR}/configuration/moonraker.conf")
+THEME_REPO=$(echo "${THEME_SECTION}" | sed -nE 's/^origin:[[:space:]]*//p')
+THEME_BRANCH=$(echo "${THEME_SECTION}" | sed -nE 's/^primary_branch:[[:space:]]*//p')
+as_user git clone --branch "${THEME_BRANCH}" "${THEME_REPO}" "${CONFIG_DIR}/.theme"
+
+# RatOS's moonraker.conf includes the defaults from the RatOS configuration
+install -o "${BASE_USER}" -g "${BASE_USER}" -m 0644 /files/ratos/moonraker.conf "${CONFIG_DIR}/moonraker.conf"
+
+if [ -d /etc/avahi ]; then
+    install -m 0644 /files/ratos/avahi-daemon.conf /etc/avahi/avahi-daemon.conf
+fi
+as_user git config --global pull.ff only
+
+########################################
+# Install the RatOS configuration      #
+########################################
+
+# ratos-install.sh sets up printer.cfg, board udev rules, Beacon and system packages. The
+# configurator then registers and links the Klipper and Moonraker extensions when it starts (so
+# Beacon must be installed first), and ratos-post-install.sh needs it running too. Both scripts run
+# as the user (as on RatOS v2.1.x, so the configuration's environment.sh picks that user) and use
+# sudo for system changes; the build-only sudoers entry is removed afterwards.
+SERVER_PID=""
+stop_server() {
+    if [ -n "${SERVER_PID}" ]; then
+        kill "${SERVER_PID}" 2>/dev/null || true
+        wait "${SERVER_PID}" 2>/dev/null || true
+        SERVER_PID=""
+    fi
+    pkill -u "${BASE_USER}" -f "next/dist/bin/next start" 2>/dev/null || true
+    rm -f "${BUILD_SUDOERS}"
+}
+trap stop_server EXIT
+
+install_sudoers 099-ratos-build << EOF
+${BASE_USER} ALL=(ALL:ALL) NOPASSWD:ALL
+EOF
+
+as_user env RATOS_ENV_FILE="${ENV_FILE}" "${APP_DIR}/configuration/scripts/ratos-install.sh"
+
+echo "Starting the RatOS configurator"
+as_user env RATOS_ENV_FILE="${ENV_FILE}" NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 \
+    bash -c "set -a; source '${ENV_FILE}'; set +a; cd '${APP_DIR}' && exec node node_modules/next/dist/bin/next start" \
+    > "${SERVER_LOG}" 2>&1 &
+SERVER_PID=$!
+
+# Next.js runs the configurator's startup (extension registration and linking) before it answers.
+if ! timeout 300 bash -c 'until curl -s -o /dev/null "http://localhost:3000/configure"; do sleep 2; done'; then
+    echo "The RatOS configurator did not start:" >&2
+    cat "${SERVER_LOG}" >&2
+    exit 1
+fi
+
+as_user env RATOS_ENV_FILE="${ENV_FILE}" "${APP_DIR}/configuration/scripts/ratos-post-install.sh"
+
+stop_server
+trap - EXIT
+cat "${SERVER_LOG}"
