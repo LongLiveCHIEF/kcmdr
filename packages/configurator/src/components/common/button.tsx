@@ -97,6 +97,18 @@ export const buttonVariants = cva(
 	},
 );
 
+type RouteLinkProps<R extends string> = LinkProps<R> &
+	Omit<React.AnchorHTMLAttributes<HTMLAnchorElement>, keyof LinkProps<R>> &
+	React.RefAttributes<HTMLAnchorElement>;
+
+/**
+ * next/link's Link, taking the route type as a type argument. Link only has that type argument
+ * once Next has generated the typed-route declarations (dist/types/link.d.ts, written by
+ * `next build` and `next dev`), so this keeps the component typechecking without them.
+ * The routes themselves are checked whenever the declarations exist, including in `next build`.
+ */
+const RouteLink = Link as unknown as <R extends string>(props: RouteLinkProps<R>) => React.ReactElement;
+
 export type ButtonVariantProps = VariantProps<typeof buttonVariants>;
 export type Intents = NonNullable<Required<ButtonVariantProps>['variant']>;
 
@@ -136,7 +148,7 @@ export const Button = forwardRef(function Button<T extends string>(
 	const buttonClasses = twMerge(buttonVariants({ variant: variant, disabled: disabled, size: size }), className);
 	if (href) {
 		return (
-			<Link<T>
+			<RouteLink<T>
 				href={href}
 				ref={ref}
 				className={buttonClasses}
@@ -146,7 +158,7 @@ export const Button = forwardRef(function Button<T extends string>(
 				rel={rel}
 			>
 				{children}
-			</Link>
+			</RouteLink>
 		);
 	}
 	if (dropdownItems && dropdownItems.length && onClick == null) {
